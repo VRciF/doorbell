@@ -1,0 +1,151 @@
+<html>
+<head>
+    <script src="js/jquery-3.2.1.min.js"></script>
+</head>
+<body>
+
+<canvas id="canvas" width="120" height="260" style="display: block;"></canvas>
+
+    <script>
+
+    // get the context from the canvas to draw on
+    var canvasHeight = document.getElementById("canvas").getAttribute("height");
+    var canvasWidth = document.getElementById("canvas").getAttribute("width");
+    var ctx = document.getElementById("canvas").getContext("2d");
+    
+
+    // create a gradient for the fill. Note the strange
+    // offset, since the gradient is calculated based on
+    // the canvas, not the specific element we draw
+    var gradient = ctx.createLinearGradient(0,0,0,canvasHeight);
+    gradient.addColorStop(1,'#000000');
+    gradient.addColorStop(0.75,'#00ff00');
+    gradient.addColorStop(0.25,'#ffff00');
+    gradient.addColorStop(0,'#ffffff');
+
+            var audioContext = new (window.AudioContext || window.webKitAudioContext)(); // Our audio context
+
+var timing = {
+    nextStart: 0.0,
+    inTrackOffset: 0.0,
+};
+//var msgcnt = 0;
+//var previousRcv = 0;
+//var diffEnqueus = 0;
+//var diffDecodes = 0;
+
+        var ws = new WebSocket("wss://"+window.location.hostname+":8080/");
+        ws.onopen = function()
+        {
+           // Web Socket is connected, send data using send()
+           console.log("connected");
+           ws.lastConnect = new Date().getTime()/1000;
+        };
+        ws.onmessage = function (evt)
+        {
+            //var id = msgcnt;
+            //msgcnt++;
+            var n = new Date().getTime();
+            //console.log("message received", id, n-previousRcv);
+            previousRcv = n;
+
+            var fileReader = new FileReader();
+            fileReader.onload = function(){
+                //console.log("arraybuffer created", id, (new Date().getTime()-n));
+                var buffer = this.result;
+                audioContext.decodeAudioData(buffer, function(decoded){
+                    if(timing.nextStart == 0.0){
+                        timing.nextStart = audioContext.currentTime + 0.25;
+                    }
+                    else if(timing.nextStart < audioContext.currentTime){
+                        timing.nextStart = audioContext.currentTime;
+                    }
+
+                    var audioNow = audioContext.currentTime;
+                    //console.log("decoded: ", id, (new Date().getTime()-n), timing.nextStart, audioNow, new Date().getTime()-diffDecodes, audioNow-diffEnqueus, (audioNow - timing.nextStart), decoded.duration-timing.inTrackOffset);
+                    //diffEnqueus = audioNow;
+                    //diffDecodes = new Date().getTime();
+
+                    var source = audioContext.createBufferSource();
+                    source.buffer = decoded;
+                    source.connect(audioContext.destination);
+                    source.start(timing.nextStart, timing.inTrackOffset);
+
+                    timing.nextStart += decoded.duration-timing.inTrackOffset;
+                    //console.log("enqueued: ", id, (new Date().getTime()-n));
+                }).catch(function(e){
+                    console.log("failed", e);
+                });
+            };
+            fileReader.readAsArrayBuffer(evt.data);
+        };
+        ws.onerror = function(err){
+            console.log("error", err);
+            ws.close();
+        };
+        ws.onclose = function()
+        {
+            console.log("onclose");
+            ws = null;
+        };
+
+var session = {
+  audio: true,
+  video: false
+};
+var analyser = audioContext.createAnalyser();
+analyser.smoothingTimeConstant = 0.3;
+analyser.fftSize = 1024;
+
+var recordRTC = null;
+navigator.getUserMedia(session, initializeRecorder, function(e){ console.log("getUserMedia failed", e); });
+
+function initializeRecorder(stream) {
+  var audioInput = audioContext.createMediaStreamSource(stream);
+  var bufferSize = 2048;
+  // create a javascript node
+  var recorder = audioContext.createScriptProcessor(bufferSize, 1, 1);
+  // specify the processing function
+  recorder.onaudioprocess = recorderProcess;
+
+  //audioInput.connect(analyser);
+  //analyser.connect(recorder);
+
+  // connect stream to our recorder
+  //audioInput.connect(recorder);
+  // connect our recorder to the previous destination
+  recorder.connect(audioContext.destination);
+}
+
+function recorderProcess(e) {
+  // get the average, bincount is fftsize / 2
+  var arr =  new Uint8Array(analyser.frequencyBinCount);
+  analyser.getByteFrequencyData(arr);
+  var average = arr.reduce(function(a,b){ return a+b; })/arr.length;
+  console.log("average volume: ", average);
+
+  // clear the current state
+  ctx.clearRect(0, 0, canvasWidth, canvasHeight);
+  // set the fill style
+  ctx.fillStyle=gradient;
+  // create the meters
+  ctx.fillRect(0,canvasHeight-average,25,canvasHeight);
+
+  var left = e.inputBuffer.getChannelData(0);
+  if(ws!=null){
+      ws.send(convertFloat32ToInt16(left));
+  }
+}
+
+function convertFloat32ToInt16(buffer) {
+  var l = buffer.length;
+  var buf = new Int16Array(l);
+  while (l--) {
+    buf[l] = Math.min(1, buffer[l])*0x7FFF;
+  }
+  return buf.buffer;
+}
+
+    </script>
+</body>
+</html>

@@ -1,0 +1,298 @@
+<html>
+<head>
+    <script src="js/jquery-3.2.1.min.js"></script>
+<!-- Latest compiled and minified CSS -->
+<link rel="stylesheet" href="js/bootstrap-3.3.7-dist/css/bootstrap.min.css" integrity="sha384-BVYiiSIFeK1dGmJRAkycuHAHRg32OmUcww7on3RYdg4Va+PmSTsz/K68vbdEjh4u" crossorigin="anonymous">
+
+<!-- Optional theme -->
+<link rel="stylesheet" href="js/bootstrap-3.3.7-dist/css/bootstrap-theme.min.css" integrity="sha384-rHyoN1iRsVXV4nD0JutlnGaslCJuC7uwjduW9SVrLvRYooPp2bWYgmgJQIXwl/Sp" crossorigin="anonymous">
+
+<!-- Latest compiled and minified JavaScript -->
+<script src="js/bootstrap-3.3.7-dist/js/bootstrap.min.js" integrity="sha384-Tc5IQib027qvyjSMfHjOMaLkfuWVxZxUPnCJA7l2mCWNIpG9mGCD8wGNIcPD7Txa" crossorigin="anonymous"></script>
+
+<link rel="stylesheet" href="js/font-awesome-4.7.0/css/font-awesome.min.css"/>
+
+
+<script src="js/jquery-ui-1.12.1.custom/jquery-ui.min.js"></script>
+<link rel="stylesheet" href="js/jquery-ui-1.12.1.custom/jquery-ui.min.css"/>
+<link rel="stylesheet" href="js/jquery-ui-1.12.1.custom/jquery-ui.theme.min.css"/>
+
+</head>
+<body>
+
+<div class="container">
+    <div class="row">
+        <div class="col-xs-12 col-sm-offset-3 col-sm-6 header" style="text-align:center;">
+           Test
+        </div>
+    </div>
+    <div class="row">
+        <div class="col-xs-12 col-sm-offset-3 col-sm-6">
+            <div class="panel panel-default">
+                <ul class="list-group" id="contact-list">
+                    <li class="list-group-item" data-who="nam1">
+                        <div class="col-xs-12 col-sm-3">
+<!--                            <img src="http://api.randomuser.me/portraits/men/49.jpg" alt="Scott Stevens" class="img-responsive img-circle" /> -->
+                             <a href="javascript:void(0)" class="button tick">
+                                 <i class="fa fa-bell-o fa-3x bell"></i>
+                             </a>
+                        </div>
+                        <div class="col-xs-12 col-sm-9 name-div">
+                            <span class="name">NAME1</span>
+                        </div>
+                        <div class="clearfix"></div>
+                    </li>
+                    <li class="list-group-item" data-who="nam2">
+                        <div class="col-xs-12 col-sm-3">
+                             <a href="javascript:void(0)" class="button tick">
+                                 <i class="fa fa-bell-o fa-3x bell"></i>
+                             </a>
+                        </div>
+                        <div class="col-xs-12 col-sm-9 name-div">
+                            <span class="name">NAME2</span>
+                        </div>
+                        <div class="clearfix"></div>
+                    </li>
+                </ul>
+            </div>
+        </div>
+	</div>
+    
+</div>
+
+<script>
+        var ws = new WebSocket("wss://"+window.location.hostname+":8080/");
+        ws.onopen = function()
+        {
+           // Web Socket is connected, send data using send()
+           console.log("connected");
+           ws.lastConnect = new Date().getTime()/1000;
+        };
+        ws.onmessage = function (evt)
+        {
+        };
+
+    $('li').on('click', function(){
+        var who = $(this).data()['who'];
+        $(this).find('.bell').each(function(){
+            $(this).effect( "bounce", {percent: 100}, 1500 );
+            if(ws!=null){ ws.send(JSON.stringify({action: 'ring', who: who})); }
+        });
+       console.log('clicked');
+    });
+
+    setInterval((function weather(){
+        console.log("test");
+        $.ajax({
+            dataType: "json",
+            url: 'http://weather.local/api',
+            success: function(data){
+                data = data[0];
+                var str = "Temperatur: "+data.outTemp.toFixed(2)+"&#8451; "+formatDate(new Date(), "dddd h:mmtt d MMM yyyy");
+                $('.header').html(str);
+                console.log("result", data,str);
+            }
+        });
+        return weather;
+    })(), 5*1000);
+
+function formatDate(date, format, utc) {
+    var MMMM = ["\x00", "Januar", "Februar", "März", "April", "Mai", "Juni", "Juli", "August", "September", "Oktober", "November", "Dezember"];
+    var MMM = ["\x01", "Jan", "Feb", "Mär", "Apr", "Miy", "Jun", "Jul", "Aug", "Sep", "Okt", "Nov", "Dez"];
+    var dddd = ["\x02", "Sonntag", "Montag", "Dienstag", "Mittwoch", "Donnerstag", "Freitag", "Samstag"];
+    var ddd = ["\x03", "Son", "Mon", "Die", "Mit", "Don", "Fre", "Sam"];
+
+    function ii(i, len) {
+        var s = i + "";
+        len = len || 2;
+        while (s.length < len) s = "0" + s;
+        return s;
+    }
+
+    var y = utc ? date.getUTCFullYear() : date.getFullYear();
+    format = format.replace(/(^|[^\\])yyyy+/g, "$1" + y);
+    format = format.replace(/(^|[^\\])yy/g, "$1" + y.toString().substr(2, 2));
+    format = format.replace(/(^|[^\\])y/g, "$1" + y);
+
+    var M = (utc ? date.getUTCMonth() : date.getMonth()) + 1;
+    format = format.replace(/(^|[^\\])MMMM+/g, "$1" + MMMM[0]);
+    format = format.replace(/(^|[^\\])MMM/g, "$1" + MMM[0]);
+    format = format.replace(/(^|[^\\])MM/g, "$1" + ii(M));
+    format = format.replace(/(^|[^\\])M/g, "$1" + M);
+
+    var d = utc ? date.getUTCDate() : date.getDate();
+    format = format.replace(/(^|[^\\])dddd+/g, "$1" + dddd[0]);
+    format = format.replace(/(^|[^\\])ddd/g, "$1" + ddd[0]);
+    format = format.replace(/(^|[^\\])dd/g, "$1" + ii(d));
+    format = format.replace(/(^|[^\\])d/g, "$1" + d);
+
+    var H = utc ? date.getUTCHours() : date.getHours();
+    format = format.replace(/(^|[^\\])HH+/g, "$1" + ii(H));
+    format = format.replace(/(^|[^\\])H/g, "$1" + H);
+
+    var h = H > 12 ? H - 12 : H == 0 ? 12 : H;
+    format = format.replace(/(^|[^\\])hh+/g, "$1" + ii(h));
+    format = format.replace(/(^|[^\\])h/g, "$1" + h);
+
+    var m = utc ? date.getUTCMinutes() : date.getMinutes();
+    format = format.replace(/(^|[^\\])mm+/g, "$1" + ii(m));
+    format = format.replace(/(^|[^\\])m/g, "$1" + m);
+
+    var s = utc ? date.getUTCSeconds() : date.getSeconds();
+    format = format.replace(/(^|[^\\])ss+/g, "$1" + ii(s));
+    format = format.replace(/(^|[^\\])s/g, "$1" + s);
+
+    var f = utc ? date.getUTCMilliseconds() : date.getMilliseconds();
+    format = format.replace(/(^|[^\\])fff+/g, "$1" + ii(f, 3));
+    f = Math.round(f / 10);
+    format = format.replace(/(^|[^\\])ff/g, "$1" + ii(f));
+    f = Math.round(f / 10);
+    format = format.replace(/(^|[^\\])f/g, "$1" + f);
+
+    var T = H < 12 ? "AM" : "PM";
+    format = format.replace(/(^|[^\\])TT+/g, "$1" + T);
+    format = format.replace(/(^|[^\\])T/g, "$1" + T.charAt(0));
+
+    var t = T.toLowerCase();
+    format = format.replace(/(^|[^\\])tt+/g, "$1" + t);
+    format = format.replace(/(^|[^\\])t/g, "$1" + t.charAt(0));
+
+    var tz = -date.getTimezoneOffset();
+    var K = utc || !tz ? "Z" : tz > 0 ? "+" : "-";
+    if (!utc) {
+        tz = Math.abs(tz);
+        var tzHrs = Math.floor(tz / 60);
+        var tzMin = tz % 60;
+        K += ii(tzHrs) + ":" + ii(tzMin);
+    }
+    format = format.replace(/(^|[^\\])K/g, "$1" + K);
+
+    var day = (utc ? date.getUTCDay() : date.getDay()) + 1;
+    format = format.replace(new RegExp(dddd[0], "g"), dddd[day]);
+    format = format.replace(new RegExp(ddd[0], "g"), ddd[day]);
+
+    format = format.replace(new RegExp(MMMM[0], "g"), MMMM[M]);
+    format = format.replace(new RegExp(MMM[0], "g"), MMM[M]);
+
+    format = format.replace(/\\(.)/g, "$1");
+
+    return format;
+};
+
+</script>
+
+<style>
+html, body{
+  min-height:100%;
+}
+
+body{
+  		background-image: -webkit-linear-gradient(top, #edecec, #cecbc9);
+			background-image: linear-gradient(top, #edecec, #cecbc9);
+}
+
+.header {
+    text-align: center;
+}
+
+.buttonHolder{
+  margin:80px auto;
+  width:400px;
+}
+
+
+		.button{
+			background-image: -webkit-linear-gradient(top, #f4f1ee, #fff);
+			background-image: linear-gradient(top, #f4f1ee, #fff);
+			border-radius: 50%;
+			box-shadow: 0px 8px 10px 0px rgba(0, 0, 0, .3), inset 0px 4px 1px 1px white, inset 0px -3px 1px 1px rgba(204,198,197,.5);
+			float:left;
+			height: 70px;
+			margin: 0 30px 30px 0;
+			position: relative;
+			width: 70px;			
+			-webkit-transition: all .1s linear;
+			transition: all .1s linear;
+                        position: absolute;
+                        top: 15px;
+                        left: 30px;
+		}
+
+		.button:after{
+			color:#e9e6e4;
+			content: "";
+			display: block;
+			font-size: 30px;
+			height: 30px;
+			text-decoration: none;
+			text-shadow: 0px -1px 1px #bdb5b4, 1px 1px 1px white;
+			position: absolute;
+			width: 30px;
+		}
+
+
+		.button:hover{
+			background-image: -webkit-linear-gradient(top, #fff, #f4f1ee);
+			background-image: linear-gradient(top, #fff, #f4f1ee);
+			color:#0088cc;
+		}
+
+		.heart:hover:after{
+			color:#f94e66;
+			text-shadow:0px 0px 6px #f94e66;
+		}
+
+		.flower:hover:after{
+			color:#f99e4e;
+			text-shadow:0px 0px 6px #f99e4e;
+		}
+
+		.tick:hover:after{
+			color:#83d244;
+			text-shadow:0px 0px 6px #83d244;
+		}
+
+		.cross:hover:after{
+			color:#eb2f2f;
+			text-shadow:0px 0px 6px #eb2f2f;
+		}
+
+		
+
+		.button:active{
+			background-image: -webkit-linear-gradient(top, #efedec, #f7f4f4);
+			background-image: linear-gradient(top, #efedec, #f7f4f4);
+			box-shadow: 0 3px 5px 0 rgba(0,0,0,.4), inset 0px -3px 1px 1px rgba(204,198,197,.5);
+		}
+
+		.button:active:after{
+			color:#dbd2d2;
+			text-shadow: 0px -1px 1px #bdb5b4, 0px 1px 1px white;
+		}
+ .bell {
+   left: 15px;
+   top: 13px;
+   position: absolute;
+ }
+</style>
+
+<style>
+
+body {
+    padding: 30px 0px 60px;
+}
+.name-div{
+    height: 100px;
+}
+.name {
+    font-size: 1.7em;
+    font-weight: 700;
+    position:absolute;
+    top:33px;
+}
+
+</style>
+
+
+</body>
+</html>

@@ -1,0 +1,22 @@
+{
+  "name": "doorbell",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "base64-js": "^1.2.0",
+    "fs-extra": "^3.0.1",
+    "inotify": "^1.4.1",
+    "mp3-parser": "^0.3.0",
+    "naudiodon": "^0.1.2",
+    "node-lame": "^1.0.4",
+    "nodejs-websocket": "^1.7.1",
+    "pcm-util": "^2.1.0",
+    "wav": "^1.0.1"
+  }
+}

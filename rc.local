@@ -1,0 +1,18 @@
+#!/bin/bash
+
+DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
+
+mount -t tmpfs -o size=30m tmpfs $DIR/record
+
+exit
+
+pushd $DIR
+
+#nohup ./record.microphone.sh &
+nohup ./nodejs.server.sh &
+nohup ./kill.record.at.midnight.sh &
+nohup ./stream.webcam.video.sh &
+nohup ./cleanup.video.sh &
+
+popd
+
