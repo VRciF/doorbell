@@ -1,0 +1,56 @@
+<html>
+<head>
+</head>
+<body>
+  <script>
+
+var channelName = "doorbell:resident1";
+
+var serverSampleRate = 16000;
+
+var recw = new Worker("playbackworker.js");
+recw.onmessage = function(event) {
+//    console.log("websocket message: ", event.data);
+    switch(event.data.type){
+        case 'pcm':
+            // enqueue for playback
+            enqueuePCM(event.data.data);
+            break;
+        case 'init':
+            recw.postMessage({type: "init", server: window.location.hostname, port: 8080, sampleRate: serverSampleRate, channel: channelName});
+            break;
+    }
+};
+// recw.terminate
+
+var timing = {
+    nextStart: 0.0,
+    inTrackOffset: 0.0,
+};
+var context = new (window.AudioContext || window.webkitAudioContext)();
+
+function enqueuePCM(data){
+                var buffer = new Float32Array(data, 0, data.byteLength/4);
+                    if(timing.nextStart == 0.0){
+                        timing.nextStart = context.currentTime + 0.25;
+                    }
+                    else if(timing.nextStart < context.currentTime){
+                        timing.nextStart = context.currentTime;
+                    }
+
+                    var audioNow = context.currentTime;
+
+                    var audioBuffer = context.createBuffer(1, buffer.length, serverSampleRate);
+                    audioBuffer.copyToChannel(buffer, 0);
+
+                    var source = context.createBufferSource();
+                    source.buffer = audioBuffer;
+                    source.connect(context.destination);
+                    source.start(timing.nextStart, timing.inTrackOffset);
+
+                    timing.nextStart += audioBuffer.duration-timing.inTrackOffset;
+}
+
+  </script>
+</body>
+</html>

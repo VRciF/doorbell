@@ -1,18 +1,12 @@
 version: "2"
 services:
-  node:
-#    image: "node:8"
-    build: .
+  install:
+    image: "node:8"
 #    user: "node"
     working_dir: /home/node/app
     environment:
       - NODE_ENV=production
     volumes:
       - ./:/home/node/app
-    ports:
-      - 8080:8080
-      - 80:80
-    devices:
-      - /dev/snd:/dev/snd
-    command: "node index"
+    command: "npm install"
 
