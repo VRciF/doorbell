@@ -29,7 +29,8 @@ recw.onmessage = function(event) {
 };
 // recw.terminate
 
-processVideo();
+processAudio();
+//processVideo();
 
 function processVideo(){
   var fps = 25;
@@ -265,7 +266,7 @@ function processAudio(){
         recorder.connect(context.destination);
     }
     function recorderProcess(e) {
-    //    cnt++; if(cnt >= 20) return;
+//        cnt++; if(cnt >= 50) return;
 
         audioBuffer = e.inputBuffer;
         resampleAndSend(audioBuffer);
@@ -273,6 +274,11 @@ function processAudio(){
 
     function resampleAndSend(audiobuffer){
         inBuffer = audiobuffer.getChannelData(0);
+//        inBuffer.fill(1);
+//        console.log(inBuffer);
+        recw.postMessage({type: 'pcm', data: inBuffer, sampleRate: audiobuffer.sampleRate});
+console.log("duration: ", audiobuffer.duration, inBuffer.length, audiobuffer.length);
+/*
 
         if(audiobuffer.sampleRate == serverSampleRate){
             recw.postMessage({type: 'pcm', data: inBuffer});
@@ -293,6 +299,7 @@ function processAudio(){
             recw.postMessage({type: 'pcm', data: typedbuffer});
         }
         o.startRendering();
+*/
     }
 }
 

@@ -36,6 +36,7 @@ wss.on('connection', function connection(ws, req) {
 });
 
 function broadcastAudioChunk(originDevice, destinationChannel, pcm){
+console.log("broadcast");
       wss.clients.forEach(function each(client) {
           if (client.readyState === WebSocket.OPEN && client.uuid != originDevice && (destinationChannel == "*" || client.channel == destinationChannel)) {
               client.send(pcm);
@@ -86,6 +87,7 @@ var currentMic = null;
 var ffmpegProc = null;
 
 function handleMicrophones(){
+    return;
     parseArecord();
     if(Object.keys(microphones).length <= 0){
         return;

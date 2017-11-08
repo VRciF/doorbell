@@ -14,6 +14,7 @@ recw.onmessage = function(event) {
     switch(event.data.type){
         case 'pcm':
             // enqueue for playback
+console.log("pcm data");
             enqueuePCM(event.data.data);
             break;
         case 'init':
@@ -25,10 +26,56 @@ recw.onmessage = function(event) {
 
 var timing = {
     nextStart: 0.0,
-    inTrackOffset: 0.0,
+//    inTrackOffset: 0.049342404,
+    startTrackOffset: 0.03,
+    endTrackOffset: 0.028,
 };
 var context = new (window.AudioContext || window.webkitAudioContext)();
+function enqueuePCM(data){
+//console.log(data.length);
+    context.decodeAudioData(data, function(audioBuffer) {
+console.log("duration: ", audioBuffer.duration, audioBuffer.length, audioBuffer.getChannelData(0));
+                    if(timing.nextStart == 0.0){
+                        timing.nextStart = context.currentTime + 0.25;
+                    }
+                    else if(timing.nextStart < context.currentTime){
+                        timing.nextStart = context.currentTime;
+                    }
+                    var audioNow = context.currentTime;
+                    var duration = audioBuffer.duration-timing.startTrackOffset-timing.endTrackOffset;
+                    var source = context.createBufferSource();
+                    source.buffer = audioBuffer;
+                    source.connect(context.destination);
+                    source.start(timing.nextStart, timing.startTrackOffset, duration);
 
+                    timing.nextStart += duration;
+      },
+
+      function(e){ console.log("Error with decoding audio data",e); });
+/*
+                var buffer = new Float32Array(data, 0, data.byteLength/4);
+                    if(timing.nextStart == 0.0){
+                        timing.nextStart = context.currentTime + 0.25;
+                    }
+                    else if(timing.nextStart < context.currentTime){
+                        timing.nextStart = context.currentTime;
+                    }
+
+                    var audioNow = context.currentTime;
+
+                    var audioBuffer = context.createBuffer(1, buffer.length, serverSampleRate);
+                    audioBuffer.copyToChannel(buffer, 0);
+
+                    var source = context.createBufferSource();
+                    source.buffer = audioBuffer;
+                    source.connect(context.destination);
+                    source.start(timing.nextStart, timing.startTrackOffset);
+
+                    timing.nextStart += audioBuffer.duration-timing.startTrackOffset;
+*/
+}
+
+/*
 function enqueuePCM(data){
                 var buffer = new Float32Array(data, 0, data.byteLength/4);
                     if(timing.nextStart == 0.0){
@@ -46,11 +93,11 @@ function enqueuePCM(data){
                     var source = context.createBufferSource();
                     source.buffer = audioBuffer;
                     source.connect(context.destination);
-                    source.start(timing.nextStart, timing.inTrackOffset);
+                    source.start(timing.nextStart, timing.startTrackOffset);
 
-                    timing.nextStart += audioBuffer.duration-timing.inTrackOffset;
+                    timing.nextStart += audioBuffer.duration-timing.startTrackOffset;
 }
-
+*/
   </script>
 </body>
 </html>

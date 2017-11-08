@@ -8,6 +8,8 @@ var audioEndianess = checkEndian();
 var init = false;
 var channelName = "";
 
+importScripts('lame.min.js');
+
 function checkEndian() {
     var arrayBuffer = new ArrayBuffer(2);
     var uint8Array = new Uint8Array(arrayBuffer);
@@ -53,7 +55,19 @@ onmessage = function(e) {
               openWs();
           }
           else if(ws && ws.readyState == 1){
-              ws.send(arr);
+              for(var i=0;i<arr.length;i++){
+                  arr[i] = arr[i]*32767.5;
+              }
+//              var mp3encoder = new lamejs.Mp3Encoder(1, 16000, 16);  // encode mono 16khz to 16kbps
+              var mp3encoder = new lamejs.Mp3Encoder(1, msg.sampleRate, 128);  // encode mono 44.1khz to 128kbps
+              var mp3Data = mp3encoder.encodeBuffer(arr);
+              //mp3 = mp3Data;
+              var mp3Tail = mp3encoder.flush();
+              var mp3 = new Int8Array(mp3Data.length+mp3Tail.length);
+              mp3.set(mp3Data);
+              mp3.set(mp3Tail, mp3Data.length);
+              //console.log(mp3.length, mp3);
+              ws.send(mp3);
           }
           break;
       case "init":
