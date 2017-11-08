@@ -4,6 +4,7 @@ var http = require('http');
 var fs = require('fs-extra');
 const url = require('url');
 var exec = require('child_process').exec;
+var spawn = require('child_process').spawn;
 
 function guid() {
   function s4() {
@@ -30,14 +31,17 @@ wss.on('connection', function connection(ws, req) {
   ws.uuid       = guid();
 
   ws.on('message', function (message) {
-      wss.clients.forEach(function each(client) {
-          console.log(ws.uuid, ws.channel, client.uuid, client.channel);
-          if (client.readyState === WebSocket.OPEN && client.uuid != ws.uuid && client.channel == ws.channel) {
-              client.send(message);
-          }
-      });
+      broadcastAudioChunk(ws.uuid, ws.channel, message);
   });
 });
+
+function broadcastAudioChunk(originDevice, destinationChannel, pcm){
+      wss.clients.forEach(function each(client) {
+          if (client.readyState === WebSocket.OPEN && client.uuid != originDevice && (destinationChannel == "*" || client.channel == destinationChannel)) {
+              client.send(pcm);
+          }
+      });
+}
 
 httpServer = http.createServer(function(request, response){
     try {
@@ -77,12 +81,31 @@ httpServer.listen(80, function(){
     console.log("server listening");
 });
 
+var microphones = {};
+var currentMic = null;
+var ffmpegProc = null;
+
 function handleMicrophones(){
     parseArecord();
+    if(Object.keys(microphones).length <= 0){
+        return;
+    }
+    if(!currentMic || !(currentMic in microphones)){
+        var firstMic = Object.keys(microphones)[0];
+        currentMic = firstMic;
+        if(ffmpegProc){ ffmpegProc.kill(); }
+        ffmpegProc = spawn("ffmpeg", ["-loglevel","error","-f","alsa","-i","hw:"+microphones[firstMic].hw,"-f","f32le","-acodec","pcm_f32le","-ac","1","-ar","16000","-"]);
+        ffmpegProc.stdout.on('data', function(pcm){
+            broadcastAudioChunk(currentMic, "*", pcm);
+        });
+        ffmpegProc.stderr.on('data', function(errstr){ console.log("ffmpeg error: ", errstr.toString('utf8')); ffmpegProc.kill(); });
+        ffmpegProc.on('close', function(){});
+    }
 }
 
 function parseArecord(){
     exec("arecord -l", function(error, output, err){
+        var newMics = {};
         var cardlines = output.match(/card .*/g);
         for(var i=0;i<cardlines.length;i++){
             var line = cardlines[i];
@@ -94,8 +117,10 @@ function parseArecord(){
             device[0] = parseInt(device[0].match(/\d+/)[0]);
             device[1] = device[1].trim();
             var result = {card: {id: card[0], name: card[1]}, device: {id: device[0], name: device[1]}, hw: card[0]+","+device[0], name: card[1]+","+device[1]};
-            console.log(result);
+//            console.log(result);
+            newMics[result.hw+":"+result.name] = result;
         }
+        microphones = newMics;
     });
 }
 
