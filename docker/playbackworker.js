@@ -8,6 +8,8 @@ var audioEndianess = checkEndian();
 var init = false;
 var channelName = "";
 
+importScripts('PSON.min.js');
+
 function checkEndian() {
     var arrayBuffer = new ArrayBuffer(2);
     var uint8Array = new Uint8Array(arrayBuffer);

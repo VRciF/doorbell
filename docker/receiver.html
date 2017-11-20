@@ -14,7 +14,7 @@ recw.onmessage = function(event) {
     switch(event.data.type){
         case 'pcm':
             // enqueue for playback
-console.log("pcm data");
+//console.log("pcm data");
             enqueuePCM(event.data.data);
             break;
         case 'init':
@@ -26,15 +26,51 @@ console.log("pcm data");
 
 var timing = {
     nextStart: 0.0,
-//    inTrackOffset: 0.049342404,
-    startTrackOffset: 0.03,
-    endTrackOffset: 0.028,
+    startTrackOffset: 0,
+    endTrackOffset: 0,
 };
+
 var context = new (window.AudioContext || window.webkitAudioContext)();
 function enqueuePCM(data){
-//console.log(data.length);
+    var now = new Date().getTime();
     context.decodeAudioData(data, function(audioBuffer) {
-console.log("duration: ", audioBuffer.duration, audioBuffer.length, audioBuffer.getChannelData(0));
+                    var floatbuffer = audioBuffer.getChannelData(0);
+                    var pattern = [1,1,1,1,1,0,0,0,0,0,1,1,1,1,1,0,0,0,0,0];
+                    var beginIdx = 0, endIdx = -1;
+                    for(var i=0;i<floatbuffer.length;i++){
+                        var cnt = 0;
+                        for(var j=0;j<pattern.length;j++){
+                            if(Math.abs(floatbuffer[i+j]-pattern[j])<=0.3){ cnt++; }
+                        }
+                        if(cnt==pattern.length){
+                            beginIdx = i+pattern.length;
+                            break;
+                        }
+                    }
+                    for(var i=floatbuffer.length-1-pattern.length;i>=beginIdx;i--){
+                        var cnt = 0;
+                        for(var j=0;j<pattern.length;j++){
+                            if(Math.abs(floatbuffer[i+j]-pattern[j])<=0.3){ cnt++; }
+                        }
+                        if(cnt==pattern.length){
+                            endIdx = i;
+                            break;
+                        }
+                    }
+                    var audioSlice = null;
+                    if(beginIdx!=0 && endIdx!=0){
+                        audioSlice = floatbuffer.slice(beginIdx, endIdx);
+                    }
+//console.log("before duration: ", audioBuffer.duration, audioBuffer.length, audioBuffer.getChannelData(0), beginIdx, endIdx);
+                    if(audioSlice){
+                        var myArrayBuffer = context.createBuffer(1, audioSlice.length, audioBuffer.sampleRate);
+                        var nowBuffering = myArrayBuffer.getChannelData(0);
+                        for (var i = 0; i < audioSlice.length; i++) {
+                            nowBuffering[i] = audioSlice[i];
+                        }
+                        audioBuffer = myArrayBuffer;
+                    }
+console.log("after duration: ", audioBuffer.duration, audioBuffer.length, audioBuffer.getChannelData(0), beginIdx, endIdx);
                     if(timing.nextStart == 0.0){
                         timing.nextStart = context.currentTime + 0.25;
                     }
@@ -49,6 +85,7 @@ console.log("duration: ", audioBuffer.duration, audioBuffer.length, audioBuffer.
                     source.start(timing.nextStart, timing.startTrackOffset, duration);
 
                     timing.nextStart += duration;
+                    console.log("took: ", (new Date().getTime()-now));
       },
 
       function(e){ console.log("Error with decoding audio data",e); });

@@ -2,6 +2,7 @@
 <head>
 </head>
 <body>
+  <button onclick="toggleStreaming();">Toggle Streaming</button>
   <div class="camera">
     <video id="video">Video stream not available.</video>
   </div>
@@ -15,6 +16,11 @@
   </div>
 
   <script>
+
+var enableStreaming = true;
+function toggleStreaming(){
+    enableStreaming = !enableStreaming;
+}
 
 var channelName = "doorbell:resident1";
 var serverSampleRate = 16000;
@@ -273,13 +279,11 @@ function processAudio(){
     }
 
     function resampleAndSend(audiobuffer){
+        if(!enableStreaming){ return; }
         inBuffer = audiobuffer.getChannelData(0);
-//        inBuffer.fill(1);
-//        console.log(inBuffer);
         recw.postMessage({type: 'pcm', data: inBuffer, sampleRate: audiobuffer.sampleRate});
-console.log("duration: ", audiobuffer.duration, inBuffer.length, audiobuffer.length);
+console.log("audiobuffer duration: ", audiobuffer.duration, audiobuffer.length);
 /*
-
         if(audiobuffer.sampleRate == serverSampleRate){
             recw.postMessage({type: 'pcm', data: inBuffer});
             return;

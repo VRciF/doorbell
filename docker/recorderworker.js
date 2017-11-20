@@ -7,8 +7,14 @@ var audiotype = '';
 var audioEndianess = checkEndian();
 var init = false;
 var channelName = "";
+var mp3Encoder = null;
 
 importScripts('lame.min.js');
+importScripts('bytebuffer.min.js');
+importScripts('PSON.min.js');
+importScripts('msgpack-javascript-master/msgpack.js');
+
+var pson = new dcodeIO.PSON.StaticPair();
 
 function checkEndian() {
     var arrayBuffer = new ArrayBuffer(2);
@@ -55,18 +61,47 @@ onmessage = function(e) {
               openWs();
           }
           else if(ws && ws.readyState == 1){
-              for(var i=0;i<arr.length;i++){
-                  arr[i] = arr[i]*32767.5;
+              //arr.fill(1);
+
+              var ser = pson.toArrayBuffer({t: 'a', p: arr});
+              console.log("pson:", arr, ser, ser.byteLength, pson.decode(ser));
+              console.log("msgpack:", msgpack.pack({t: 'a', p: arr}));
+              console.log("unpack: ", msgpack.unpack(msgpack.pack({t: 'a', p: arr})));
+
+
+              var pattern = [1,1,1,1,1,0,0,0,0,0,1,1,1,1,1,0,0,0,0,0];
+              var newArray = new Float32Array(arr.length+2*pattern.length);
+console.log("channel length: ", arr.length, pattern.length, newArray.length);
+              for(var i=0;i<pattern.length;i++){
+                  newArray[i] = pattern[i];
+                  newArray[newArray.length-pattern.length+i] = pattern[i];
               }
-//              var mp3encoder = new lamejs.Mp3Encoder(1, 16000, 16);  // encode mono 16khz to 16kbps
-              var mp3encoder = new lamejs.Mp3Encoder(1, msg.sampleRate, 128);  // encode mono 44.1khz to 128kbps
-              var mp3Data = mp3encoder.encodeBuffer(arr);
-              //mp3 = mp3Data;
-              var mp3Tail = mp3encoder.flush();
-              var mp3 = new Int8Array(mp3Data.length+mp3Tail.length);
-              mp3.set(mp3Data);
-              mp3.set(mp3Tail, mp3Data.length);
-              //console.log(mp3.length, mp3);
+              newArray.set(arr, pattern.length);
+              arr = newArray;
+
+              var len = arr.length;
+              var dataAsInt16Array = new Int16Array(len);
+              for(var i=0;i < len;i++){
+                  var n = arr[i];
+                  dataAsInt16Array[i] = Math.max(-32768, Math.min(32768, n < 0 ? n * 32768 : n * 32767));
+              }
+              arr = dataAsInt16Array;
+
+              //for(var i=0;i<arr.length;i++){
+              //    arr[i] = arr[i]*32767.5;
+              //}
+//              var mp3Encoder = new lamejs.Mp3Encoder(1, 16000, 16);  // encode mono 16khz to 16kbps
+              //var mp3Encoder = new lamejs.Mp3Encoder(1, msg.sampleRate, 128);  // encode mono 44.1khz to 128kbps
+              if(!mp3Encoder){
+                  mp3Encoder = new lamejs.Mp3Encoder(1, msg.sampleRate, 128);  // encode mono 44.1khz to 128kbps
+              }
+              var mp3Data = mp3Encoder.encodeBuffer(arr);
+              mp3 = mp3Data;
+              //var mp3Tail = mp3Encoder.flush();
+              //var mp3 = new Int8Array(mp3Data.length+mp3Tail.length);
+              //mp3.set(mp3Data);
+              //mp3.set(mp3Tail, mp3Data.length);
+              console.log("mp3 size", mp3.length, mp3);
               ws.send(mp3);
           }
           break;
