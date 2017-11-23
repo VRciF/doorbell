@@ -3,13 +3,15 @@
 
 <script>
   function decode(u){
+console.log(u);
       var a = internalDecode(u);
+console.log(a);
       return a[0];
 
       function internalDecode(u){
           var v;
           var byteOffset = 0;
-          switch(u[0]){
+          switch(u[0] & 0x0F){
               case 0x00:  // undefined
                   v = undefined;
                   byteOffset = 1;
@@ -20,65 +22,76 @@
                   break;
 
               case 0x02:  // object
-                  v = {};
-                  var olen = decode(u.slice(1,9));
-                  var o    = u.slice(9, olen+9);
-                  byteOffset = olen+9;
+                  switch(u[0] & 0xF0){
+                      case 0x00:
+                          v = {};
+                          var olen = decode(u.slice(1,10));
+                          var o    = u.slice(10, olen+10);
+                          byteOffset = olen+10;
 
-                  for(var i=0;i<olen;){
-                      var r = internalDecode(o.slice(i));
-                      var key = r[0];
-                      i += r[1];
-                      r = internalDecode(o.slice(i));
-                      var val = r[0];
-                      i += r[1];
-                      v[key] = val;
+                          for(var i=0;i<olen;){
+                              var r = internalDecode(o.slice(i));
+                              var key = r[0];
+                              i += r[1];
+                              r = internalDecode(o.slice(i));
+                              var val = r[0];
+                              i += r[1];
+                              v[key] = val;
+                          }
+
+                          //var buf = new ArrayBuffer(utmplength.length+utmp.length+1);
+                          //u = new Uint8Array(buf);
+                          //u[0] = 0x02;
+                          //for(var i=0;i<utmplength.length;i++){ u[i+1] = utmplength[i]; }
+                          //for(var j=0;j<utmp.length;j++){ u[i+j+1] = utmplength[j]; }
+                          break;
+                      case 0x10:  // array
+                          var alen = decode(u.slice(1,10));
+                          var uarr  = u.slice(10, alen+10);
+                          byteOffset = alen+10;
+
+                          var v = [];
+                          for(var i=0;i<alen;){
+                              var r = internalDecode(u.slice(i+10));
+                              v.push(r[0]);
+                              i += r[1];
+                          }
+                          break;
                   }
-
-                  //var buf = new ArrayBuffer(utmplength.length+utmp.length+1);
-                  //u = new Uint8Array(buf);
-                  //u[0] = 0x02;
-                  //for(var i=0;i<utmplength.length;i++){ u[i+1] = utmplength[i]; }
-                  //for(var j=0;j<utmp.length;j++){ u[i+j+1] = utmplength[j]; }
                   break;
-              case 0x12:  // array
-                  var alen = decode(u.slice(1,9));
-                  var uarr  = u.slice(9, alen+9);
-                  byteOffset = alen+9;
-
-                  var v = [];
-                  for(var i=0;i<alen;){
-                      var r = internalDecode(u.slice(i+9));
-                      v.push(r[0]);
-                      i += r[1];
+               case 0x03:  // number
+                  switch(u[0] & 0xF0){
+                      case 0x40:  // negative infinity
+                          v = Number.NEGATIVE_INFINITY;
+                          byteOffset = 1;
+                          break;
+                      case 0x30:  // positive infinity
+                          v = Number.POSITIVE_INFINITY;
+                          byteOffset = 1;
+                          break;
+                      case 0x20:  // nan
+                          v = Number.NaN;
+                          byteOffset = 1;
+                          break;
+                      case 0x10:  // float number
+                          var v = new Float64Array(1);
+                          var u8 = new Uint8Array(v.buffer);
+                          var s = u.slice(1,10);
+                          for(var i=0;i<u8.length;i++){ u8[i] = s[i]; }
+                          byteOffset = 9;
+                          break;
+                      case 0x00:  // integer number
+                          var ui32 = new Uint32Array(2);
+                          var ui8  = new Uint8Array(ui32.buffer);
+                          for(var i=0;i<8;i++){ ui8[i] = u[i+1]; }
+                          v = (ui32[0]<<32) | ui32[1];
+                          byteOffset = 9;
+                                  break;
                   }
-
-                  break;
-
-               case 0x43:  // negative infinity
-                  v = Number.NEGATIVE_INFINITY;
-                  byteOffset = 1;
-                  break;
-               case 0x33:  // positive infinity
-                  v = Number.POSITIVE_INFINITY;
-                  byteOffset = 1;
-                  break;
-               case 0x23:  // nan
-                  v = Number.NaN;
-                  byteOffset = 1;
-                  break;
-               case 0x13:  // float number
-                  v = Float64Array.from(u.slice(1,9))[0];
-                  byteOffset = 9;
-                  break;
-               case 0x03:  // integer number
-                  var ui32 = Uint32Array.from(u.slice(1,9));
-                  v = (ui32[0]<<32) | ui32[1];
-                  byteOffset = 9;
                   break;
 
                case 0x04:  // string
-                  var len = decode(u.slice(1,9));  // decode number
+                  var len = decode(u.slice(1,10));  // decode number
                   v = new TextDecoder('utf-8').decode(u.slice(10,len+10));
                   byteOffset = len+10;
                   break;
@@ -86,17 +99,22 @@
                case 0x05:  // function
                   u[0] = 0x04;
                   var r = internalDecode(u);
-                  v = Function(r[0]);
+ console.log(r);
+                  v = new Function("return "+r[0])();
                   byteOffset = r[1];
                   break;
 
-               case 0x06:  // boolean false
-                  v = false;
-                  byteOffset = 1;
-                  break;
-               case 0x16:  // boolean true
-                  v = true;
-                  byteOffset = 1;
+               case 0x06:  // boolean
+                  switch(u[0] & 0xF0){
+                      case 0x00: // false
+                          v = false;
+                          byteOffset = 1;
+                          break;
+                      case 0x10:  // boolean true
+                          v = true;
+                          byteOffset = 1;
+                          break;
+                  }
                   break;
           }
           return [v, byteOffset];
@@ -131,7 +149,7 @@
             u = new Uint8Array(buf);
             u[0] = 0x12;
             for(var i=0;i<utmplength.length;i++){ u[i+1] = utmplength[i]; }
-            for(var j=0;j<utmp.length;j++){ u[i+j+1] = utmplength[j]; }
+            for(var j=0;j<utmp.length;j++){ u[i+j+1] = utmp[j]; }
         } else{
             var utmp = new Uint8Array();
             for(var key in v){
@@ -146,7 +164,7 @@
             u = new Uint8Array(buf);
             u[0] = 0x02;
             for(var i=0;i<utmplength.length;i++){ u[i+1] = utmplength[i]; }
-            for(var j=0;j<utmp.length;j++){ u[i+j+1] = utmplength[j]; }
+            for(var j=0;j<utmp.length;j++){ u[i+j+1] = utmp[j]; }
         }
         break;
       case "number":
@@ -173,17 +191,20 @@
 
             var buf = new ArrayBuffer(9);
             u = new Uint8Array(buf);
-console.log("encode number", v);
             if(Number.isInteger(v)){
                 new Uint32Array(buftmp)[0] = v&0xFFFF0000;
                 new Uint32Array(buftmp)[1] = v&0x0000FFFF;
                 u[0] = 0x03;
             }else{
-                new Float64Array(buftmp)[0] = v;
+                var f=new Float64Array(buftmp);
+                f[0] = v;
                 u[0] = 0x13;
             }
+            var headingZero  = 0;
+            var trailingZero = 0;
+            for(var i=0;i<utmp.length;i++){ if(utmp[i]==0){ headingZero++; }else{ break; } }
+            for(var i=utmp.length-1;i>=0;i--){ if(utmp[i]==0){ trailingZero++; }else{ break; } }
             for(var i=0;i<utmp.length;i++){ u[i+1] = utmp[i]; }
-console.log(u);
         }
         //console.log(u);
         //console.log(Number.isInteger(v));
@@ -226,18 +247,20 @@ console.log(u);
     }
   }
 
-console.log(typeof []);
+  //console.log(decode(encode("test")));
 
-  console.log("4char string", encode("test"));
-  console.log("array", encode([1,2,3,4]));
-  console.log("integer", encode(3));
-  console.log("float", encode(3.1415));
-  console.log("object", encode({a:'b'}));
-  console.log("undef", encode(undefined));
-  console.log("null", encode(null));
-  console.log("boolean", encode(true));
-  console.log("symbol", encode(Symbol()));
-  console.log("function", encode(function(){console.log('hello world');}));
+  var e = null;
+  //console.log("4char string", e=encode("test"), decode(e));
+  //console.log("array", e=encode([1,2,3,4]), decode(e));
+  //console.log("integer", e=encode(3), decode(e));
+  //console.log("float", e=encode(3.1415), decode(e));
+  //console.log("object", e=encode({a:'b'}), decode(e));
+  //console.log("undef", e=encode(undefined), decode(e));
+  //console.log("null", e=encode(null), decode(e));
+  //console.log("boolean", e=encode(true), decode(e));
+  //console.log("symbol", e=encode(Symbol()), decode(e));
+  //console.log("function", e=encode(function(x){console.log('hello world', x);}), decode(e));
+
 </script>
 
 </body>
