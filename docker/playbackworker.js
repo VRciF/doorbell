@@ -8,7 +8,9 @@ var audioEndianess = checkEndian();
 var init = false;
 var channelName = "";
 
-importScripts('PSON.min.js');
+importScripts('bin-json.0.3.1.js');
+
+var json = json();
 
 function checkEndian() {
     var arrayBuffer = new ArrayBuffer(2);
@@ -37,7 +39,8 @@ function openWs(){
         ws = null;
     };
     ws.onmessage = function(event){
-        postMessage({type:"pcm", data: event.data});
+        var payload = json.decode(event.data);
+        postMessage(payload);
     }
 }
 
@@ -58,4 +61,3 @@ onmessage = function(e) {
 }
 
 postMessage({type:'init'});
-

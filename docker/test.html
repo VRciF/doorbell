@@ -1,11 +1,31 @@
 <html>
 <body>
 
+<script src="require.js"></script>
+
+<script src="bin-json.0.3.1.js"></script>
 <script>
+
+var functionNames = [];
+
+for (var f in window) {
+    if (window.hasOwnProperty(f) && typeof window[f] === 'function') {
+        functionNames.push(f);
+    }
+}
+
+var json = json();
+
+const buffer = json.encode({
+  mime: 'image/png',
+  test: 'hmpf',
+});
+
+console.log(buffer, json.decode(buffer));
+
+/*
   function decode(u){
-console.log(u);
       var a = internalDecode(u);
-console.log(a);
       return a[0];
 
       function internalDecode(u){
@@ -57,6 +77,24 @@ console.log(a);
                               i += r[1];
                           }
                           break;
+                      case 0x20:  // typed array
+                          var alen = decode(u.slice(2,11));
+
+                          switch(u[1]){
+                              case 0x01: v = new Float32Array(alen/4); break;
+                              case 0x02: v = new Float64Array(alen/8); break;
+                              case 0x03: v = new Int8Array(alen); break;
+                              case 0x04: v = new Uint8Array(alen); break;
+                              case 0x05: v = new Uint8ClampedArray(alen); break;
+                              case 0x06: v = new Int16Array(alen/2); break;
+                              case 0x07: v = new Uint16Array(alen/2); break;
+                              case 0x08: v = new Int32Array(alen/4); break;
+                              case 0x09: v = new Uint32Array(alen/4); break;
+                              case 0x0A: v = new ArrayBuffer(alen); break;
+                          }
+                          var ui8 = new Uint8Array(v.buffer);
+                          for(var i=0;i<alen;i++){ ui8[i] = u[i+11]; }
+                          break;
                   }
                   break;
                case 0x03:  // number
@@ -99,7 +137,7 @@ console.log(a);
                case 0x05:  // function
                   u[0] = 0x04;
                   var r = internalDecode(u);
- console.log(r);
+
                   v = new Function("return "+r[0])();
                   byteOffset = r[1];
                   break;
@@ -150,7 +188,33 @@ console.log(a);
             u[0] = 0x12;
             for(var i=0;i<utmplength.length;i++){ u[i+1] = utmplength[i]; }
             for(var j=0;j<utmp.length;j++){ u[i+j+1] = utmp[j]; }
-        } else{
+        }
+        else if(isTypedArray(v) || v instanceof ArrayBuffer){
+            if(v instanceof ArrayBuffer)
+                var ui8 = new Uint8Array(v);
+            else
+                var ui8 = new Uint8Array(v.buffer);
+
+            var utmplength = encode(v.byteLength);
+            var buf = new ArrayBuffer(utmplength.length+ui8.length+2);
+            u = new Uint8Array(buf);
+            u[0] = 0x22;
+            switch(true){
+                case v instanceof Float32Array:      u[1] = 0x01; break;
+                case v instanceof Float64Array:      u[1] = 0x02; break;
+                case v instanceof Int8Array:         u[1] = 0x03; break;
+                case v instanceof Uint8Array:        u[1] = 0x04; break;
+                case v instanceof Uint8ClampedArray: u[1] = 0x05; break;
+                case v instanceof Int16Array:        u[1] = 0x06; break;
+                case v instanceof Uint16Array:       u[1] = 0x07; break;
+                case v instanceof Int32Array:        u[1] = 0x08; break;
+                case v instanceof Uint32Array:       u[1] = 0x09; break;
+                case v instanceof ArrayBuffer:       u[1] = 0x0A; break;
+            }
+            for(var i=0;i<utmplength.length;i++){ u[i+2] = utmplength[i]; }
+            for(var j=0;j<ui8.length;j++){ u[i+j+2] = ui8[j]; }
+        }
+        else{
             var utmp = new Uint8Array();
             for(var key in v){
                 var ukey = encode(key);
@@ -206,8 +270,7 @@ console.log(a);
             for(var i=utmp.length-1;i>=0;i--){ if(utmp[i]==0){ trailingZero++; }else{ break; } }
             for(var i=0;i<utmp.length;i++){ u[i+1] = utmp[i]; }
         }
-        //console.log(u);
-        //console.log(Number.isInteger(v));
+
         break;
       case "string":
         var utmp = new TextEncoder('utf-8').encode(v);
@@ -239,6 +302,8 @@ console.log(a);
 
     return u;
 
+    function isTypedArray(a) { return !!(a.buffer instanceof ArrayBuffer && a.BYTES_PER_ELEMENT); }
+
     function concatTypedArrays(a, b) { // a, b TypedArray of same type
       var c = new (a.constructor)(a.length + b.length);
       c.set(a, 0);
@@ -250,6 +315,8 @@ console.log(a);
   //console.log(decode(encode("test")));
 
   var e = null;
+  console.log("float array", e=encode(Float32Array.from([1.1,2.2,3.1415])), decode(e));
+  console.log("arraybuffer", e=encode(new ArrayBuffer(5)), decode(e));
   //console.log("4char string", e=encode("test"), decode(e));
   //console.log("array", e=encode([1,2,3,4]), decode(e));
   //console.log("integer", e=encode(3), decode(e));
@@ -260,7 +327,7 @@ console.log(a);
   //console.log("boolean", e=encode(true), decode(e));
   //console.log("symbol", e=encode(Symbol()), decode(e));
   //console.log("function", e=encode(function(x){console.log('hello world', x);}), decode(e));
-
+*/
 </script>
 
 </body>

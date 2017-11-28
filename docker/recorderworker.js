@@ -10,11 +10,9 @@ var channelName = "";
 var mp3Encoder = null;
 
 importScripts('lame.min.js');
-importScripts('bytebuffer.min.js');
-importScripts('PSON.min.js');
-importScripts('msgpack-javascript-master/msgpack.js');
+importScripts('bin-json.0.3.1.js');
 
-var pson = new dcodeIO.PSON.StaticPair();
+var json = json();
 
 function checkEndian() {
     var arrayBuffer = new ArrayBuffer(2);
@@ -40,9 +38,19 @@ function openWs(){
     };
 }
 
+var backupBuffer = null;
+
 onmessage = function(e) {
   var msg = e.data;
   switch(msg.type){
+      case "webm":
+          var payload = json.encode({
+            type: 'video',
+            encoding: 'webm/h264',
+            data: msg.data,
+          });
+          ws.send(payload);
+          break;
       case "pcm":
           if(!init){ return; }
           arr = msg.data;
@@ -61,22 +69,39 @@ onmessage = function(e) {
               openWs();
           }
           else if(ws && ws.readyState == 1){
+// NewValue = (((OldValue - (-1)) * (0.5 - (-0.5))) / (1 - (-1))) + (-0.5)
+// console.log("max: ",Math.max.apply(null, arr));
               //arr.fill(1);
 
-              var ser = pson.toArrayBuffer({t: 'a', p: arr});
-              console.log("pson:", arr, ser, ser.byteLength, pson.decode(ser));
-              console.log("msgpack:", msgpack.pack({t: 'a', p: arr}));
-              console.log("unpack: ", msgpack.unpack(msgpack.pack({t: 'a', p: arr})));
+//              var ser = pson.toArrayBuffer({t: 'a', p: arr});
+//              console.log("pson:", arr, ser, ser.byteLength, pson.decode(ser));
+//              console.log("msgpack:", msgpack.pack({t: 'a', p: arr}));
+//              console.log("unpack: ", msgpack.unpack(msgpack.pack({t: 'a', p: arr})));
 
 
               var pattern = [1,1,1,1,1,0,0,0,0,0,1,1,1,1,1,0,0,0,0,0];
-              var newArray = new Float32Array(arr.length+2*pattern.length);
-console.log("channel length: ", arr.length, pattern.length, newArray.length);
+              var newArray = null;
+              if(backupBuffer){
+                  newArray = new Float32Array(pattern.length+backupBuffer.length+arr.length+pattern.length);
+              }
+              else{
+                  newArray = new Float32Array(pattern.length+arr.length+pattern.length);
+              }
+//console.log("channel length: ", arr.byteLength, pattern.length, newArray.length);
               for(var i=0;i<pattern.length;i++){
                   newArray[i] = pattern[i];
                   newArray[newArray.length-pattern.length+i] = pattern[i];
               }
-              newArray.set(arr, pattern.length);
+              if(backupBuffer){
+                  newArray.set(backupBuffer, pattern.length);
+                  newArray.set(arr, pattern.length+backupBuffer.length);
+              }
+              else{
+                  newArray.set(arr, pattern.length);
+              }
+              backupBuffer = arr.slice(arr.length-1024);
+
+
               arr = newArray;
 
               var len = arr.length;
@@ -96,13 +121,19 @@ console.log("channel length: ", arr.length, pattern.length, newArray.length);
                   mp3Encoder = new lamejs.Mp3Encoder(1, msg.sampleRate, 128);  // encode mono 44.1khz to 128kbps
               }
               var mp3Data = mp3Encoder.encodeBuffer(arr);
-              mp3 = mp3Data;
-              //var mp3Tail = mp3Encoder.flush();
-              //var mp3 = new Int8Array(mp3Data.length+mp3Tail.length);
-              //mp3.set(mp3Data);
-              //mp3.set(mp3Tail, mp3Data.length);
-              console.log("mp3 size", mp3.length, mp3);
-              ws.send(mp3);
+              //mp3 = mp3Data;
+              var mp3Tail = mp3Encoder.flush();
+              var mp3 = new Int8Array(mp3Data.length+mp3Tail.length);
+              mp3.set(mp3Data);
+              mp3.set(mp3Tail, mp3Data.length);
+              //console.log("mp3 size", mp3.length, mp3);
+
+              var payload = json.encode({
+                type: 'audio',
+                encoding: 'mp3',
+                data: mp3,
+              });
+              ws.send(payload);
           }
           break;
       case "init":
@@ -116,4 +147,3 @@ console.log("channel length: ", arr.length, pattern.length, newArray.length);
 }
 
 postMessage({type:'init'});
-

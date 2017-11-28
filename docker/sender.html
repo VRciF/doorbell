@@ -16,6 +16,10 @@
   </div>
 
   <script>
+  navigator.getUserMedia = ( navigator.getUserMedia ||
+                       navigator.webkitGetUserMedia ||
+                       navigator.mozGetUserMedia ||
+                       navigator.msGetUserMedia);
 
 var enableStreaming = true;
 function toggleStreaming(){
@@ -36,7 +40,7 @@ recw.onmessage = function(event) {
 // recw.terminate
 
 processAudio();
-//processVideo();
+processVideo();
 
 function processVideo(){
   var fps = 25;
@@ -74,15 +78,21 @@ var videocnt = 0;
         mediaRecorder.start();
 
         function handleDataAvailable(event) {
-console.log("data available");
+console.log("data available", event.data);
            if (event.data.size > 0) {
-               console.log(event.data);
+                var fileReader = new FileReader();
+                fileReader.onload = function() {
+                    console.log(this.result);
+                    recw.postMessage({type: 'webm', data: new Int8Array(this.result)});
+                };
+                fileReader.readAsArrayBuffer(event.data);
+
 //               saveData(event.data, "video."+videocnt+".webm");
 //               videocnt++;
            }
         }
 
-        setInterval(function(){ mediaRecorder.stop(); mediaRecorder.start(); }, 5000);
+        setInterval(function(){ mediaRecorder.stop(); mediaRecorder.start(); }, 500);
     })
     .catch(function(err) {
         console.log("An error occured! " + err);
@@ -104,7 +114,7 @@ var saveData = (function () {
     video.addEventListener('canplay', function(ev){
       if (!streaming) {
         height = video.videoHeight / (video.videoWidth/width);
-      
+
         video.setAttribute('width', width);
         video.setAttribute('height', height);
         canvas[0].setAttribute('width', width);
@@ -127,7 +137,7 @@ var saveData = (function () {
            canvas[i].width = width;
            canvas[i].height = height;
            context.drawImage(video, 0, 0, width, height);
-    
+
            //var data = canvas.toDataURL('image/png');
            //photo.setAttribute('src', data);
            computeDifference();
@@ -282,7 +292,6 @@ function processAudio(){
         if(!enableStreaming){ return; }
         inBuffer = audiobuffer.getChannelData(0);
         recw.postMessage({type: 'pcm', data: inBuffer, sampleRate: audiobuffer.sampleRate});
-console.log("audiobuffer duration: ", audiobuffer.duration, audiobuffer.length);
 /*
         if(audiobuffer.sampleRate == serverSampleRate){
             recw.postMessage({type: 'pcm', data: inBuffer});

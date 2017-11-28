@@ -2,6 +2,7 @@
 <head>
 </head>
 <body>
+    <video id="video" width="320" height="240"><source id="source"></source></video>
   <script>
 
 var channelName = "doorbell:resident1";
@@ -10,12 +11,43 @@ var serverSampleRate = 16000;
 
 var recw = new Worker("playbackworker.js");
 recw.onmessage = function(event) {
-//    console.log("websocket message: ", event.data);
+    //console.log("websocket message: ", event.data);
     switch(event.data.type){
-        case 'pcm':
+        case 'video':
+            switch(event.data.encoding){
+                case 'webm/h264':
+                    console.log("video", event.data.data);
+                    var blob = new Blob([event.data.data],{type:'video/webm'});
+                    var reader = new FileReader();
+                    reader.onload = function(){
+                        console.log(this.result);
+                        var video = document.getElementById('video');
+                        var source = document.getElementById('source');
+
+                        video.pause();
+
+                        source.setAttribute('src', this.result);
+                        video.load();
+
+                        video.play();
+                        //var dataurl = evt.target.result;
+                        //callback(dataurl.substr(dataurl.indexOf(',')+1));
+                    };
+                    reader.readAsDataURL(blob);
+                    break;
+            }
+            break;
+        case 'audio':
             // enqueue for playback
 //console.log("pcm data");
-            enqueuePCM(event.data.data);
+            switch(event.data.encoding){
+                case "mp3":
+                    enqueueMP3(event.data.data);
+                    break;
+                case "pcm":
+                    enqueuePCMUint8(event.data.data);
+                    break;
+            }
             break;
         case 'init':
             recw.postMessage({type: "init", server: window.location.hostname, port: 8080, sampleRate: serverSampleRate, channel: channelName});
@@ -31,110 +63,70 @@ var timing = {
 };
 
 var context = new (window.AudioContext || window.webkitAudioContext)();
-function enqueuePCM(data){
-    var now = new Date().getTime();
-    context.decodeAudioData(data, function(audioBuffer) {
-                    var floatbuffer = audioBuffer.getChannelData(0);
-                    var pattern = [1,1,1,1,1,0,0,0,0,0,1,1,1,1,1,0,0,0,0,0];
-                    var beginIdx = 0, endIdx = -1;
-                    for(var i=0;i<floatbuffer.length;i++){
-                        var cnt = 0;
-                        for(var j=0;j<pattern.length;j++){
-                            if(Math.abs(floatbuffer[i+j]-pattern[j])<=0.3){ cnt++; }
-                        }
-                        if(cnt==pattern.length){
-                            beginIdx = i+pattern.length;
-                            break;
-                        }
-                    }
-                    for(var i=floatbuffer.length-1-pattern.length;i>=beginIdx;i--){
-                        var cnt = 0;
-                        for(var j=0;j<pattern.length;j++){
-                            if(Math.abs(floatbuffer[i+j]-pattern[j])<=0.3){ cnt++; }
-                        }
-                        if(cnt==pattern.length){
-                            endIdx = i;
-                            break;
-                        }
-                    }
-                    var audioSlice = null;
-                    if(beginIdx!=0 && endIdx!=0){
-                        audioSlice = floatbuffer.slice(beginIdx, endIdx);
-                    }
+function enqueueAudioBuffer(audioBuffer){
+    var floatbuffer = audioBuffer.getChannelData(0);
+    var pattern = [1,1,1,1,1,0,0,0,0,0,1,1,1,1,1,0,0,0,0,0];
+    var beginIdx = 0, endIdx = -1;
+    for(var i=0;i<floatbuffer.length;i++){
+        var cnt = 0;
+        for(var j=0;j<pattern.length;j++){
+            if(Math.abs(floatbuffer[i+j]-pattern[j])<=0.3){ cnt++; }
+        }
+        if(cnt==pattern.length){
+            beginIdx = i+pattern.length;
+            break;
+        }
+    }
+    for(var i=floatbuffer.length-1-pattern.length;i>=beginIdx;i--){
+        var cnt = 0;
+        for(var j=0;j<pattern.length;j++){
+            if(Math.abs(floatbuffer[i+j]-pattern[j])<=0.3){ cnt++; }
+        }
+        if(cnt==pattern.length){
+            endIdx = i;
+            break;
+        }
+    }
+    var audioSlice = null;
+    if(beginIdx>0 && endIdx>0){
+        audioSlice = floatbuffer.slice(beginIdx+1024, endIdx-1024);
+    }
 //console.log("before duration: ", audioBuffer.duration, audioBuffer.length, audioBuffer.getChannelData(0), beginIdx, endIdx);
-                    if(audioSlice){
-                        var myArrayBuffer = context.createBuffer(1, audioSlice.length, audioBuffer.sampleRate);
-                        var nowBuffering = myArrayBuffer.getChannelData(0);
-                        for (var i = 0; i < audioSlice.length; i++) {
-                            nowBuffering[i] = audioSlice[i];
-                        }
-                        audioBuffer = myArrayBuffer;
-                    }
-console.log("after duration: ", audioBuffer.duration, audioBuffer.length, audioBuffer.getChannelData(0), beginIdx, endIdx);
-                    if(timing.nextStart == 0.0){
-                        timing.nextStart = context.currentTime + 0.25;
-                    }
-                    else if(timing.nextStart < context.currentTime){
-                        timing.nextStart = context.currentTime;
-                    }
-                    var audioNow = context.currentTime;
-                    var duration = audioBuffer.duration-timing.startTrackOffset-timing.endTrackOffset;
-                    var source = context.createBufferSource();
-                    source.buffer = audioBuffer;
-                    source.connect(context.destination);
-                    source.start(timing.nextStart, timing.startTrackOffset, duration);
+    if(audioSlice){
+        var myArrayBuffer = context.createBuffer(1, audioSlice.length, audioBuffer.sampleRate);
+        var nowBuffering = myArrayBuffer.getChannelData(0);
+        for (var i = 0; i < audioSlice.length; i++) {
+            nowBuffering[i] = audioSlice[i];
+        }
+        audioBuffer = myArrayBuffer;
+    }
+//console.log("after duration: ", audioBuffer.duration, audioBuffer.length, audioBuffer.getChannelData(0), beginIdx, endIdx);
+    if(timing.nextStart == 0.0){
+        timing.nextStart = context.currentTime + 0.25;
+    }
+    else if(timing.nextStart < context.currentTime){
+        timing.nextStart = context.currentTime;
+    }
+    var audioNow = context.currentTime;
+    var duration = audioBuffer.duration-timing.startTrackOffset-timing.endTrackOffset;
+    var source = context.createBufferSource();
+    source.buffer = audioBuffer;
+    source.connect(context.destination);
+    source.start(timing.nextStart, timing.startTrackOffset, duration);
 
-                    timing.nextStart += duration;
-                    console.log("took: ", (new Date().getTime()-now));
-      },
-
-      function(e){ console.log("Error with decoding audio data",e); });
-/*
-                var buffer = new Float32Array(data, 0, data.byteLength/4);
-                    if(timing.nextStart == 0.0){
-                        timing.nextStart = context.currentTime + 0.25;
-                    }
-                    else if(timing.nextStart < context.currentTime){
-                        timing.nextStart = context.currentTime;
-                    }
-
-                    var audioNow = context.currentTime;
-
-                    var audioBuffer = context.createBuffer(1, buffer.length, serverSampleRate);
-                    audioBuffer.copyToChannel(buffer, 0);
-
-                    var source = context.createBufferSource();
-                    source.buffer = audioBuffer;
-                    source.connect(context.destination);
-                    source.start(timing.nextStart, timing.startTrackOffset);
-
-                    timing.nextStart += audioBuffer.duration-timing.startTrackOffset;
-*/
+    timing.nextStart += duration;
+}
+function enqueueMP3(data){
+    //console.log("decode data: ", data);
+    context.decodeAudioData(data.buffer, enqueueAudioBuffer, function(e){ console.log("Error with decoding audio data",e); });
+}
+function enqueuePCMUint8(data){
+    var buffer = new Float32Array(data, 0, data.byteLength/4);
+    var audioBuffer = context.createBuffer(1, buffer.length, serverSampleRate);
+    audioBuffer.copyToChannel(buffer, 0);
+    enqueueAudioBuffer(audioBuffer);
 }
 
-/*
-function enqueuePCM(data){
-                var buffer = new Float32Array(data, 0, data.byteLength/4);
-                    if(timing.nextStart == 0.0){
-                        timing.nextStart = context.currentTime + 0.25;
-                    }
-                    else if(timing.nextStart < context.currentTime){
-                        timing.nextStart = context.currentTime;
-                    }
-
-                    var audioNow = context.currentTime;
-
-                    var audioBuffer = context.createBuffer(1, buffer.length, serverSampleRate);
-                    audioBuffer.copyToChannel(buffer, 0);
-
-                    var source = context.createBufferSource();
-                    source.buffer = audioBuffer;
-                    source.connect(context.destination);
-                    source.start(timing.nextStart, timing.startTrackOffset);
-
-                    timing.nextStart += audioBuffer.duration-timing.startTrackOffset;
-}
-*/
   </script>
 </body>
 </html>
