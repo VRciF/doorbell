@@ -31,17 +31,67 @@ wss.on('connection', function connection(ws, req) {
   ws.uuid       = guid();
 
   ws.on('message', function (message) {
-      broadcastAudioChunk(ws.uuid, ws.channel, message);
+        var length = new Uint32Array(message.slice(0,4))[0];
+        var jsonbuff = message.slice(4,4+length);
+        var obj = JSON.parse(jsonbuff.toString('utf8'));
+
+        if(obj.type=='video'){
+            var now = new Date().getTime();
+            var ffmpeg = null;
+            var filename = "/tmp/vid."+ws.uuid+"."+now+".mp4";
+            var video = message.slice(4+length);
+            switch(obj.encoding){
+                case 'video/webm;codecs=vp8':
+                    //console.log("vp8 transcoder");
+                    ffmpeg = spawn('ffmpeg', ['-i', 'pipe:0', '-f', 'webm', '-qscale', '0', filename]);
+                    break;
+                case 'video/webm;codecs=h264':
+                    //console.log("h264 transcoder");
+                    ffmpeg = spawn('ffmpeg', ['-i', 'pipe:0', '-f', 'webm', '-c:v', 'copy', filename]);
+                    // transcode to mp4
+                    break;
+            }
+            ffmpeg.on('exit', function(){
+                //console.log("ffmpeg exit!!");
+                try{
+                    fs.readFile(filename, 'utf8', function(err, data){
+                        if(!err){
+                            var newMessage = new Uint8Array(4+length+data.length);
+                            newMessage.set(message.slice(0,4+length));
+                            newMessage.set(data, 4+length);
+                            newMessage = message;
+                            broadcastAudioChunk(ws.uuid, ws.channel, message);
+                        }
+                        try{
+                            //console.log("unlink file success");
+                            fs.unlinkSync(filename);
+                        }catch(e){}
+                    });
+                }catch(e){
+                    try{
+                        //console.log("unlink file error");
+                        fs.unlinkSync(filename);
+                    }catch(e){}
+                }
+            });
+            ffmpeg.stderr.on('data', function (data) {
+                //console.log('grep stderr: ' + data);
+            });
+            ffmpeg.stdin.end(video);
+        }
+        else{
+            broadcastAudioChunk(ws.uuid, ws.channel, message);
+        }
   });
 });
 
 function broadcastAudioChunk(originDevice, destinationChannel, pcm){
-console.log("broadcast");
-      wss.clients.forEach(function each(client) {
-          if (client.readyState === WebSocket.OPEN && client.uuid != originDevice && (destinationChannel == "*" || client.channel == destinationChannel)) {
-              client.send(pcm);
-          }
-      });
+    //console.log("broadcast");
+    wss.clients.forEach(function each(client) {
+        if (client.readyState === WebSocket.OPEN && client.uuid != originDevice && (destinationChannel == "*" || client.channel == destinationChannel)) {
+            client.send(pcm);
+        }
+    });
 }
 
 httpServer = http.createServer(function(request, response){
@@ -127,4 +177,3 @@ function parseArecord(){
 }
 
 setInterval(handleMicrophones, 1000);
-

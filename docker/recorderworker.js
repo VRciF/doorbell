@@ -38,27 +38,58 @@ function openWs(){
     };
 }
 
+function concatTypedArray(){
+    var finallength = 0;
+    var u8arrays = [];
+    for(var argno = 0; argno < arguments.length; argno++)
+    {
+        var arg = arguments[argno];
+        var u8arr = new Uint8Array(arg.buffer);
+        finallength += u8arr.length;
+        u8arrays.push(u8arr);
+    }
+    var final = new Uint8Array(finallength);
+    var pos = 0;
+    for(var i=0;i<u8arrays.length;i++){
+        var u8 = u8arrays[i];
+        final.set(u8, pos);
+        pos += u8.length;
+    }
+    return final;
+}
+
+function encodeMsg(obj, data){
+    var jsonobj = JSON.stringify(obj);
+    var uint8jsonobj = new TextEncoder('utf-8').encode(jsonobj);
+    var uint8data = new Uint8Array(data);
+
+    var payload = new Uint8Array(uint8jsonobj.length+uint8data.length+4);
+    var length = new Uint32Array(1);
+    length[0] = uint8jsonobj.length;
+    var payload = concatTypedArray(length, uint8jsonobj, uint8data);
+    return payload;
+}
+
 var backupBuffer = null;
 
 onmessage = function(e) {
   var msg = e.data;
   switch(msg.type){
-      case "webm":
-          var payload = json.encode({
-            type: 'video',
-            encoding: 'webm/h264',
-            data: msg.data,
-          });
-          ws.send(payload);
-          break;
-      case "mp4":
-          var payload = json.encode({
-            type: 'video',
-            encoding: 'mp4/h264',
-            data: msg.data,
-          });
-          ws.send(payload);
-          break;
+      case "video/webm;codecs=vp8":
+      case "video/webm;codecs=h264":
+            var payload = encodeMsg({type: 'video', encoding: msg.type}, msg.data.buffer);
+            //var payload = json.encode({
+            //  type: 'video',
+            //  encoding: 'webm/h264',
+            //  data: msg.data,
+            //});
+            //var payload = json.encode({
+            //  type: 'video',
+            //  encoding: 'mp4/h264',
+            //  data: msg.data,
+            //});
+            ws.send(payload);
+            break;
 
       case "pcm":
           if(!init){ return; }
@@ -137,12 +168,13 @@ onmessage = function(e) {
               mp3.set(mp3Tail, mp3Data.length);
               //console.log("mp3 size", mp3.length, mp3);
 
-              var payload = json.encode({
-                type: 'audio',
-                encoding: 'mp3',
-                data: mp3,
-              });
-              ws.send(payload);
+                var payload = encodeMsg({type: 'audio', encoding: 'mp3'}, mp3.buffer);
+                //var payload = json.encode({
+                //  type: 'audio',
+                //  encoding: 'mp3',
+                //  data: mp3,
+                //});
+                ws.send(payload);
           }
           break;
       case "init":

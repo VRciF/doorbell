@@ -43,22 +43,23 @@ processAudio();
 processVideo();
 
 function processVideo(){
-  var fps = 25;
-  var width = 640;    // We will scale the photo width to this
-  var height = 0;     // This will be computed based on the input stream
+    var fps = 25;
+    var width = 640;    // We will scale the photo width to this
+    var height = 0;     // This will be computed based on the input stream
 
-  var framecount = 0;
+    var framecount = 0;
 
-  var streaming = false;
+    var streaming = false;
 
-  var video = null;
-  var canvas = [null, null];
-  var ctx = [null, null];
-  var diff = document.getElementById('diff');
-  var photo = null;
-  var startbutton = null;
+    var video = null;
+    var canvas = [null, null];
+    var ctx = [null, null];
+    var diff = document.getElementById('diff');
+    var photo = null;
+    var startbutton = null;
 
-var videocnt = 0;
+    var videoSizeInMillisecons = 2000;
+    var videocnt = 0;
 
     video = document.getElementById('video');
     canvas[0] = document.getElementById('canvas1');
@@ -72,31 +73,51 @@ var videocnt = 0;
         video.srcObject = stream;
         video.play();
 
-        var options = {mimeType: 'video/webm; codecs=h264'};
-        mediaRecorder = new MediaRecorder(stream, options);
+        var options = [
+            {mimeType: 'video/webm;codecs=h264'},
+            {mimeType: 'video/webm;codecs=vp8'},
+            //{mimeType: 'video/webm'},
+        ];
+        var mediaRecorder = null;
+        var option = null;
+        for(var i=0;i<options.length;i++){
+            try{
+                option = options[i];
+                mediaRecorder = new MediaRecorder(stream, option);
+                break;
+            }
+            catch(e){}
+        }
+        if(i==options.length){
+            console.log("no possible codec found");
+            return;
+        }
+
         mediaRecorder.ondataavailable = handleDataAvailable;
         mediaRecorder.start();
+        console.log("mediarecorder start");
 
         function handleDataAvailable(event) {
-if(!enableStreaming){ return; }
-console.log("data available", event.data);
-           if (event.data.size > 0) {
-                var transcodedMp4 = new Blob([event.data], {type: 'video/mp4'});
-console.log("transcoded: ", transcodedMp4);
-saveData(transcodedMp4, "video."+videocnt+".mp4");
+            if(!enableStreaming){ return; }
+            console.log("data available", event.data);
+            if (event.data.size > 0) {
+                //var transcodedMp4 = new Blob([event.data], {type: 'video/mp4'});
+                //console.log("transcoded: ", transcodedMp4);
+                //saveData(transcodedMp4, "video."+videocnt+".mp4");
                 var fileReader = new FileReader();
                 fileReader.onload = function() {
                     console.log(this.result);
                     //recw.postMessage({type: 'mp4', data: new Int8Array(this.result)});
+                    recw.postMessage({type: option.mimeType, data: new Int8Array(this.result)});
                 };
-                fileReader.readAsArrayBuffer(transcodedMp4);
-
-//               saveData(event.data, "video."+videocnt+".webm");
-//               videocnt++;
-           }
+                //fileReader.readAsArrayBuffer(transcodedMp4);
+                fileReader.readAsArrayBuffer(event.data);
+                //saveData(event.data, "video."+videocnt+".webm");
+                //videocnt++;
+            }
         }
 
-        setInterval(function(){ mediaRecorder.stop(); mediaRecorder.start(); }, 5000);
+        setInterval(function(){ mediaRecorder.stop(); mediaRecorder.start(); }, videoSizeInMillisecons);
     })
     .catch(function(err) {
         console.log("An error occured! " + err);

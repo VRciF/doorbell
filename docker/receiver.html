@@ -2,7 +2,8 @@
 <head>
 </head>
 <body>
-    <video id="video" width="320" height="240"><source id="source"></source></video>
+    <video id="video1" width="320" height="240"><source id="source1"></source></video>
+    <video id="video2" width="320" height="240" style="display:none;"><source id="source2"></source></video>
   <script>
 
 var channelName = "doorbell:resident1";
@@ -12,19 +13,19 @@ var serverSampleRate = 16000;
 var recw = new Worker("playbackworker.js");
 recw.onmessage = function(event) {
     //console.log("websocket message: ", event.data);
-    switch(event.data.type){
+    switch(event.data.header.type){
         case 'video':
-            enqueueVideo(event.data.data, event.data.encoding);
+            enqueueVideo(event.data.payload, event.data.header.encoding);
             break;
         case 'audio':
             // enqueue for playback
 //console.log("pcm data");
-            switch(event.data.encoding){
+            switch(event.data.header.encoding){
                 case "mp3":
-                    enqueueMP3(event.data.data);
+                    enqueueMP3(event.data.payload);
                     break;
                 case "pcm":
-                    enqueuePCMUint8(event.data.data);
+                    enqueuePCMUint8(event.data.payload);
                     break;
             }
             break;
@@ -35,28 +36,46 @@ recw.onmessage = function(event) {
 };
 // recw.terminate
 
+var nextVideo = 1;
+
+var videoEl  = [ document.getElementById('video1'), document.getElementById('video2') ];
+var sourceEl = [ document.getElementById('source1'), document.getElementById('source2') ];
+
+console.log(videoEl, sourceEl);
+
+videoEl[0].addEventListener('loadeddata', function() {
+   videoEl[0].play();
+   videoEl[1].style.display = 'none';
+   videoEl[0].style.display = 'block';
+}, false);
+videoEl[1].addEventListener('loadeddata', function() {
+   videoEl[1].play();
+   videoEl[0].style.display = 'none';
+   videoEl[1].style.display = 'block';
+}, false);
+
 function enqueueVideo(data, type){
-    var deocderType = "video/mp4";
-    if(type == "webm/h264"){
-        decoderType = "video/webm";
-    }
-                    var blob = new Blob([data],{type:decoderType});
-                    var reader = new FileReader();
-                    reader.onload = function(){
-                        console.log(this.result);
-                        var video = document.getElementById('video');
-                        var source = document.getElementById('source');
+    var decoderType = "video/mp4";
+    //if(type == "webm/h264"){
+    //    decoderType = "video/webm";
+    //}
+    var blob = new Blob([data],{type:decoderType});
+    var reader = new FileReader();
+    reader.onload = function(){
+        //console.log(this.result);
+        var next = nextVideo-1;
+        if(nextVideo==1) nextVideo = 2; else nextVideo = 1;
+        var current = nextVideo-1;
 
-                        video.pause();
+        videoEl[current].pause();
 
-                        source.setAttribute('src', this.result);
-                        video.load();
+        sourceEl[next].setAttribute('src', this.result);
+        videoEl[next].load();
 
-                        video.play();
-                        //var dataurl = evt.target.result;
-                        //callback(dataurl.substr(dataurl.indexOf(',')+1));
-                    };
-                    reader.readAsDataURL(blob);
+        //var dataurl = evt.target.result;
+        //callback(dataurl.substr(dataurl.indexOf(',')+1));
+    };
+    reader.readAsDataURL(blob);
 }
 
 var timing = {
@@ -121,7 +140,7 @@ function enqueueAudioBuffer(audioBuffer){
 }
 function enqueueMP3(data){
     //console.log("decode data: ", data);
-    context.decodeAudioData(data.buffer, enqueueAudioBuffer, function(e){ console.log("Error with decoding audio data",e); });
+    context.decodeAudioData(data, enqueueAudioBuffer, function(e){ console.log("Error with decoding audio data",e); });
 }
 function enqueuePCMUint8(data){
     var buffer = new Float32Array(data, 0, data.byteLength/4);

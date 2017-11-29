@@ -39,7 +39,15 @@ function openWs(){
         ws = null;
     };
     ws.onmessage = function(event){
-        var payload = json.decode(event.data);
+        var dec = new TextDecoder();
+
+        var length = new Uint32Array(event.data.slice(0,4))[0];
+        var jsonbuff = event.data.slice(4,4+length);
+        var obj = JSON.parse(dec.decode(jsonbuff));
+        var payload = {header: obj, payload: event.data.slice(4+length)};
+        //console.log(payload);
+
+        //var payload = json.decode(event.data);
         postMessage(payload);
     }
 }
@@ -60,4 +68,4 @@ onmessage = function(e) {
   }
 }
 
-postMessage({type:'init'});
+postMessage({header:{type:'init'}});
