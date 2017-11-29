@@ -78,21 +78,25 @@ var videocnt = 0;
         mediaRecorder.start();
 
         function handleDataAvailable(event) {
+if(!enableStreaming){ return; }
 console.log("data available", event.data);
            if (event.data.size > 0) {
+                var transcodedMp4 = new Blob([event.data], {type: 'video/mp4'});
+console.log("transcoded: ", transcodedMp4);
+saveData(transcodedMp4, "video."+videocnt+".mp4");
                 var fileReader = new FileReader();
                 fileReader.onload = function() {
                     console.log(this.result);
-                    recw.postMessage({type: 'webm', data: new Int8Array(this.result)});
+                    //recw.postMessage({type: 'mp4', data: new Int8Array(this.result)});
                 };
-                fileReader.readAsArrayBuffer(event.data);
+                fileReader.readAsArrayBuffer(transcodedMp4);
 
 //               saveData(event.data, "video."+videocnt+".webm");
 //               videocnt++;
            }
         }
 
-        setInterval(function(){ mediaRecorder.stop(); mediaRecorder.start(); }, 500);
+        setInterval(function(){ mediaRecorder.stop(); mediaRecorder.start(); }, 5000);
     })
     .catch(function(err) {
         console.log("An error occured! " + err);

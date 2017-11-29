@@ -14,28 +14,7 @@ recw.onmessage = function(event) {
     //console.log("websocket message: ", event.data);
     switch(event.data.type){
         case 'video':
-            switch(event.data.encoding){
-                case 'webm/h264':
-                    console.log("video", event.data.data);
-                    var blob = new Blob([event.data.data],{type:'video/webm'});
-                    var reader = new FileReader();
-                    reader.onload = function(){
-                        console.log(this.result);
-                        var video = document.getElementById('video');
-                        var source = document.getElementById('source');
-
-                        video.pause();
-
-                        source.setAttribute('src', this.result);
-                        video.load();
-
-                        video.play();
-                        //var dataurl = evt.target.result;
-                        //callback(dataurl.substr(dataurl.indexOf(',')+1));
-                    };
-                    reader.readAsDataURL(blob);
-                    break;
-            }
+            enqueueVideo(event.data.data, event.data.encoding);
             break;
         case 'audio':
             // enqueue for playback
@@ -55,6 +34,30 @@ recw.onmessage = function(event) {
     }
 };
 // recw.terminate
+
+function enqueueVideo(data, type){
+    var deocderType = "video/mp4";
+    if(type == "webm/h264"){
+        decoderType = "video/webm";
+    }
+                    var blob = new Blob([data],{type:decoderType});
+                    var reader = new FileReader();
+                    reader.onload = function(){
+                        console.log(this.result);
+                        var video = document.getElementById('video');
+                        var source = document.getElementById('source');
+
+                        video.pause();
+
+                        source.setAttribute('src', this.result);
+                        video.load();
+
+                        video.play();
+                        //var dataurl = evt.target.result;
+                        //callback(dataurl.substr(dataurl.indexOf(',')+1));
+                    };
+                    reader.readAsDataURL(blob);
+}
 
 var timing = {
     nextStart: 0.0,

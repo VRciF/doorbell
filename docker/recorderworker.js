@@ -51,6 +51,15 @@ onmessage = function(e) {
           });
           ws.send(payload);
           break;
+      case "mp4":
+          var payload = json.encode({
+            type: 'video',
+            encoding: 'mp4/h264',
+            data: msg.data,
+          });
+          ws.send(payload);
+          break;
+
       case "pcm":
           if(!init){ return; }
           arr = msg.data;
