@@ -36,18 +36,22 @@ wss.on('connection', function connection(ws, req) {
         var obj = JSON.parse(jsonbuff.toString('utf8'));
 
         if(obj.type=='video'){
+
             var now = new Date().getTime();
+            //console.log("recordTimes: ", obj.recordTimes, now-obj.recordTimes.stop);
+            //console.log("recordTimes: ", obj);
+
             var ffmpeg = null;
             var filename = "/tmp/vid."+ws.uuid+"."+now+".mp4";
             var video = message.slice(4+length);
             switch(obj.encoding){
                 case 'video/webm;codecs=vp8':
                     //console.log("vp8 transcoder");
-                    ffmpeg = spawn('ffmpeg', ['-i', 'pipe:0', '-f', 'webm', '-qscale', '0', filename]);
+                    ffmpeg = spawn('ffmpeg', ['-f', 'webm', '-i', 'pipe:0', '-preset', 'ultrafast', '-f', 'mp4', filename]);
                     break;
                 case 'video/webm;codecs=h264':
                     //console.log("h264 transcoder");
-                    ffmpeg = spawn('ffmpeg', ['-i', 'pipe:0', '-f', 'webm', '-c:v', 'copy', filename]);
+                    ffmpeg = spawn('ffmpeg', ['-f', 'webm', '-i', 'pipe:0', '-c:v', 'copy', filename]);
                     // transcode to mp4
                     break;
             }
@@ -60,7 +64,9 @@ wss.on('connection', function connection(ws, req) {
                             newMessage.set(message.slice(0,4+length));
                             newMessage.set(data, 4+length);
                             newMessage = message;
-                            broadcastAudioChunk(ws.uuid, ws.channel, message);
+                            broadcastChunk(ws.uuid, ws.channel, message);
+
+                            //console.log("recordTimes: ", obj.recordTimes, new Date().getTime()-obj.recordTimes.stop);
                         }
                         try{
                             //console.log("unlink file success");
@@ -80,12 +86,12 @@ wss.on('connection', function connection(ws, req) {
             ffmpeg.stdin.end(video);
         }
         else{
-            broadcastAudioChunk(ws.uuid, ws.channel, message);
+            broadcastChunk(ws.uuid, ws.channel, message);
         }
   });
 });
 
-function broadcastAudioChunk(originDevice, destinationChannel, pcm){
+function broadcastChunk(originDevice, destinationChannel, pcm){
     //console.log("broadcast");
     wss.clients.forEach(function each(client) {
         if (client.readyState === WebSocket.OPEN && client.uuid != originDevice && (destinationChannel == "*" || client.channel == destinationChannel)) {

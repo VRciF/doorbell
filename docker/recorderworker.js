@@ -77,7 +77,7 @@ onmessage = function(e) {
   switch(msg.type){
       case "video/webm;codecs=vp8":
       case "video/webm;codecs=h264":
-            var payload = encodeMsg({type: 'video', encoding: msg.type}, msg.data.buffer);
+            var payload = encodeMsg({type: 'video', encoding: msg.type, recordTimes: msg.recordTimes}, msg.data.buffer);
             //var payload = json.encode({
             //  type: 'video',
             //  encoding: 'webm/h264',

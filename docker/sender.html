@@ -20,6 +20,7 @@
                        navigator.webkitGetUserMedia ||
                        navigator.mozGetUserMedia ||
                        navigator.msGetUserMedia);
+  var audioContext = new (window.AudioContext || window.webkitAudioContext)();
 
 var enableStreaming = true;
 function toggleStreaming(){
@@ -73,6 +74,8 @@ function processVideo(){
         video.srcObject = stream;
         video.play();
 
+        var videoRecorderTime = 0;
+
         var options = [
             {mimeType: 'video/webm;codecs=h264'},
             {mimeType: 'video/webm;codecs=vp8'},
@@ -94,21 +97,28 @@ function processVideo(){
         }
 
         mediaRecorder.ondataavailable = handleDataAvailable;
+        mediaRecorder.onstart = function(){
+            //console.log("onstart");
+            mediaRecorder.startTime = new Date().getTime();
+        };
         mediaRecorder.start();
-        console.log("mediarecorder start");
 
         function handleDataAvailable(event) {
+            console.log("onavailable");
+            var now = new Date().getTime();
+            var recordTime = now - mediaRecorder.startTime;
+            var recordTimes = {start: mediaRecorder.startTime, stop: now, record: recordTime};
+            //console.log(recordTimes);
             if(!enableStreaming){ return; }
-            console.log("data available", event.data);
+            //console.log("data available", event.data);
             if (event.data.size > 0) {
                 //var transcodedMp4 = new Blob([event.data], {type: 'video/mp4'});
                 //console.log("transcoded: ", transcodedMp4);
                 //saveData(transcodedMp4, "video."+videocnt+".mp4");
                 var fileReader = new FileReader();
                 fileReader.onload = function() {
-                    console.log(this.result);
                     //recw.postMessage({type: 'mp4', data: new Int8Array(this.result)});
-                    recw.postMessage({type: option.mimeType, data: new Int8Array(this.result)});
+                    recw.postMessage({type: option.mimeType, data: new Int8Array(this.result), recordTimes: recordTimes});
                 };
                 //fileReader.readAsArrayBuffer(transcodedMp4);
                 fileReader.readAsArrayBuffer(event.data);
@@ -117,7 +127,10 @@ function processVideo(){
             }
         }
 
-        setInterval(function(){ mediaRecorder.stop(); mediaRecorder.start(); }, videoSizeInMillisecons);
+        setInterval(function(){
+                       mediaRecorder.stop();
+                       mediaRecorder.start();
+                    }, videoSizeInMillisecons);
     })
     .catch(function(err) {
         console.log("An error occured! " + err);
@@ -285,8 +298,6 @@ function invertCanvas(canvas){
 
 function processAudio(){
 
-    var context = new (window.AudioContext || window.webkitAudioContext)();
-
     var cnt = 0;
 
     // https://www.siili.com/news/creating-voice-recognition-bot-web-app-amazon-aws-lex
@@ -294,17 +305,17 @@ function processAudio(){
     var recordRTC = null;
     navigator.getUserMedia({video: false, audio: true}, initializeRecorder, function(e){ console.log(e); });
     function initializeRecorder(stream) {
-        var audioInput = context.createMediaStreamSource(stream);
+        var audioInput = audioContext.createMediaStreamSource(stream);
         var bufferSize = 8192;
         // create a javascript node
-        var recorder = context.createScriptProcessor(bufferSize, 1, 1);
-        //var recorder = context.createJavaScriptNode(bufferSize, 1, 1);
+        var recorder = audioContext.createScriptProcessor(bufferSize, 1, 1);
+        //var recorder = audioContext.createJavaScriptNode(bufferSize, 1, 1);
         // specify the processing function
         recorder.onaudioprocess = recorderProcess;
         // connect stream to our recorder
         audioInput.connect(recorder);
         // connect our recorder to the previous destination
-        recorder.connect(context.destination);
+        recorder.connect(audioContext.destination);
     }
     function recorderProcess(e) {
 //        cnt++; if(cnt >= 50) return;
