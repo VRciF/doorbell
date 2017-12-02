@@ -6,15 +6,9 @@ const url = require('url');
 var exec = require('child_process').exec;
 var spawn = require('child_process').spawn;
 
-function guid() {
-  function s4() {
-    return Math.floor((1 + Math.random()) * 0x10000)
-      .toString(16)
-      .substring(1);
-  }
-  return s4() + s4() + '-' + s4() + '-' + s4() + '-' +
-    s4() + '-' + s4() + s4() + s4();
-}
+var lamejs = require("lamejs");
+var doorutil = require('./util.js');
+var mediautil = require('./mediautil.js');
 
 var httpServer = null;
 const wss = new WebSocket.Server({ port: 8080 });
@@ -28,23 +22,18 @@ wss.on('connection', function connection(ws, req) {
   ws.bit        = location.query.b;  // 8,16,32
   ws.signedness = location.query.t;  // f,s,u
   ws.channel    = location.query.channel;
-  ws.uuid       = guid();
+  ws.uuid       = doorutil.guid();
 
   ws.on('message', function (message) {
-        var length = new Uint32Array(message.slice(0,4))[0];
-        var jsonbuff = message.slice(4,4+length);
-        var obj = JSON.parse(jsonbuff.toString('utf8'));
+        var parsedMsg = doorutil.decodeMsg(message);
 
-        if(obj.type=='video'){
+        if(parsedMsg.header.type=='video'){
 
             var now = new Date().getTime();
-            //console.log("recordTimes: ", obj.recordTimes, now-obj.recordTimes.stop);
-            //console.log("recordTimes: ", obj);
 
             var ffmpeg = null;
             var filename = "/tmp/vid."+ws.uuid+"."+now+".mp4";
-            var video = message.slice(4+length);
-            switch(obj.encoding){
+            switch(parsedMsg.header.encoding){
                 case 'video/webm;codecs=vp8':
                     //console.log("vp8 transcoder");
                     ffmpeg = spawn('ffmpeg', ['-f', 'webm', '-i', 'pipe:0', '-preset', 'ultrafast', '-f', 'mp4', filename]);
@@ -60,13 +49,8 @@ wss.on('connection', function connection(ws, req) {
                 try{
                     fs.readFile(filename, 'utf8', function(err, data){
                         if(!err){
-                            var newMessage = new Uint8Array(4+length+data.length);
-                            newMessage.set(message.slice(0,4+length));
-                            newMessage.set(data, 4+length);
-                            newMessage = message;
+                            var message = doorutil.encodeMsg(parsedMsg.header, data);
                             broadcastChunk(ws.uuid, ws.channel, message);
-
-                            //console.log("recordTimes: ", obj.recordTimes, new Date().getTime()-obj.recordTimes.stop);
                         }
                         try{
                             //console.log("unlink file success");
@@ -83,7 +67,7 @@ wss.on('connection', function connection(ws, req) {
             ffmpeg.stderr.on('data', function (data) {
                 //console.log('grep stderr: ' + data);
             });
-            ffmpeg.stdin.end(video);
+            ffmpeg.stdin.end(parsedMsg.payload);
         }
         else{
             broadcastChunk(ws.uuid, ws.channel, message);

@@ -6,8 +6,10 @@
   "dependencies": {
     "fs-extra": "^4.0.2",
     "httpdispatcher": "^2.1.0",
+    "lamejs": "^1.2.0",
     "nodejs-websocket": "^1.7.1",
     "pcm-format": "^1.1.2",
+    "utf8": "^2.1.2",
     "ws": "^3.2.0"
   },
   "devDependencies": {
