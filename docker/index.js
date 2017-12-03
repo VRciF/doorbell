@@ -23,6 +23,8 @@ wss.on('connection', function connection(ws, req) {
   ws.signedness = location.query.t;  // f,s,u
   ws.channel    = location.query.channel;
   ws.uuid       = doorutil.guid();
+  ws.ffmpeg     = null;
+  ws.ffmpegMeta = {file: "/tmp/vid."+ws.uuid+".mp4", start: 0};
 
   ws.on('message', function (message) {
         var parsedMsg = doorutil.decodeMsg(message);
@@ -31,31 +33,36 @@ wss.on('connection', function connection(ws, req) {
 
             var now = new Date().getTime();
 
-            var ffmpeg = null;
-            var filename = "/tmp/vid."+ws.uuid+"."+now+".mp4";
+            if(ws.ffmpeg !== null){ return; }
+
+            ws.ffmpegMeta.file = "/tmp/vid."+ws.uuid+"."+now+".mp4";
             switch(parsedMsg.header.encoding){
                 case 'video/webm;codecs=vp8':
                     //console.log("vp8 transcoder");
-                    ffmpeg = spawn('ffmpeg', ['-f', 'webm', '-i', 'pipe:0', '-preset', 'ultrafast', '-f', 'mp4', filename]);
+                    ws.ffmpeg = spawn('ffmpeg', ['-f', 'webm', '-i', 'pipe:0', '-preset', 'ultrafast', '-f', 'mp4', ws.ffmpegMeta.file]);
                     break;
                 case 'video/webm;codecs=h264':
                     //console.log("h264 transcoder");
-                    ffmpeg = spawn('ffmpeg', ['-f', 'webm', '-i', 'pipe:0', '-c:v', 'copy', filename]);
+                    ws.ffmpeg = spawn('ffmpeg', ['-f', 'webm', '-i', 'pipe:0', '-c:v', 'copy', ws.ffmpegMeta.file]);
                     // transcode to mp4
                     break;
             }
-            ffmpeg.on('exit', function(){
+            ws.ffmpeg.on('exit', function(){
+                var start = ws.ffmpegMeta.start;
                 //console.log("ffmpeg exit!!");
                 try{
-                    fs.readFile(filename, 'utf8', function(err, data){
+                    fs.readFile(ws.ffmpegMeta.file, function(err, data){
                         if(!err){
-                            var message = doorutil.encodeMsg(parsedMsg.header, data);
-                            broadcastChunk(ws.uuid, ws.channel, message);
+                            data = Buffer.from(data, 'utf8');
+                            parsedMsg.header.encoding = "video/mp4";
+                            var newMessage = doorutil.encodeMsg(parsedMsg.header, data);
+                            broadcastChunk(ws.uuid, ws.channel, newMessage);
                         }
                         try{
                             //console.log("unlink file success");
                             fs.unlinkSync(filename);
                         }catch(e){}
+console.log("trancoding took: ", (new Date().getTime()-start));
                     });
                 }catch(e){
                     try{
@@ -63,11 +70,13 @@ wss.on('connection', function connection(ws, req) {
                         fs.unlinkSync(filename);
                     }catch(e){}
                 }
+                ws.ffmpeg = null;
             });
-            ffmpeg.stderr.on('data', function (data) {
+            ws.ffmpeg.stderr.on('data', function (data) {
                 //console.log('grep stderr: ' + data);
             });
-            ffmpeg.stdin.end(parsedMsg.payload);
+            ws.ffmpegMeta.start = new Date().getTime();
+            ws.ffmpeg.stdin.end(parsedMsg.payload);
         }
         else{
             broadcastChunk(ws.uuid, ws.channel, message);

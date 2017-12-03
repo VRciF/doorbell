@@ -22,7 +22,9 @@ function openWs(){
         ws = null;
     };
     ws.onmessage = function(event){
-        postMessage(doorutil.decodeMsg(event.data));
+        var decoded = doorutil.decodeMsg(event.data);
+        console.log(event.data, decoded);
+        postMessage(decoded);
     }
 }
 

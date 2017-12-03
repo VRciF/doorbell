@@ -3,7 +3,7 @@
       if(typeof process === 'object' && process + '' === '[object process]')
           return true;
       return false;
-  }
+  };
   exports.guid = function(){
       function s4() {
           return Math.floor((1 + Math.random()) * 0x10000)
@@ -12,7 +12,7 @@
       }
       return s4() + s4() + '-' + s4() + '-' + s4() + '-' +
              s4() + '-' + s4() + s4() + s4();
-  }
+  };
 
   exports.checkEndian = function(){
       var arrayBuffer = new ArrayBuffer(2);
@@ -29,7 +29,7 @@
                   case Float32Array:      return {bit: 32, type: 'f'}; break;
                   case Float64Array:      return {bit: 64, type: 'f'}; break;
                   case Int8Array:         return {bit: 8, type: 's'}; break;
-                  case Uint8Array: 
+                  case Uint8Array:
                   case Uint8ClampedArray: return {bit: 8, type: 'u'}; break;
                   case Int16Array:        return {bit: 16, type: 's'}; break;
                   case Uint16Array: return {bit: 16, type: 'u'}; break;
@@ -59,35 +59,42 @@
 
   exports.encodeMsg = function(obj, data){
     var jsonobj      = JSON.stringify(obj);
-    var uint8jsonobj = exports.stringToUint(jsonobj);
+
+    var encoder = null;
+    if(this.isNode()){
+        var TextEncoder = require('text-encoding').TextEncoder;
+        encoder = new TextEncoder('utf8');
+    }
+    else{
+        encoder = new self.TextEncoder('utf8');
+    }
+    var uint8jsonobj = encoder.encode(jsonobj);
+
     var uint8data    = new Uint8Array(data);
 
     var payload = new Uint8Array(uint8jsonobj.length+uint8data.length+4);
     var length  = new Uint32Array(1);
     length[0]   = uint8jsonobj.length;
-    var payload = exports.concatTypedArray(length, uint8jsonobj, uint8data);
+    var payload = this.concatTypedArray(length, uint8jsonobj, uint8data);
     return payload;
   };
   exports.decodeMsg = function(message){
       var length = new Uint32Array(message.slice(0,4))[0];
       var jsonbuff = message.slice(4,4+length);
-      var obj = JSON.parse(jsonbuff.toString('utf8'));
+
+      var decoder = null;
+      if(this.isNode()){
+          var TextDecoder = require('text-encoding').TextDecoder;
+          decoder = new TextDecoder('utf8');
+      }
+      else{
+          decoder = new self.TextDecoder('utf8');
+      }
+      var str = decoder.decode(jsonbuff);
+
+      var obj = JSON.parse(str);
       return { header: obj, payload: message.slice(4+length) };
   };
 
-  exports.stringToUint = function(str) {
-    if(!exports.isNode()) return new TextEncoder('utf-8').encode(str); // browser variant
-
-    // nodejs code
-    var utf8 = require('utf8');
-    return utf8.encode(str);
-  };
-  exports.uintToString = function(uintArray) {
-    if(!exports.isNode()) return new TextDecoder().decode(uintArray);  // browser variant
-
-    // nodejs code
-    var utf8 = require('utf8');
-    return utf8.decode(uintArray);
-  };
 
 }(typeof exports === 'undefined' ? this.doorutil = {} : exports));
